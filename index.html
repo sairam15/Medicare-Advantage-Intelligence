@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Star Explorer — Medicare Advantage Intelligence</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    :root{
+      --bg:#0a0b12; --bg-soft:#12131d; --panel:#141522;
+      --ink:#e7e9f5; --muted:#8b90b0;
+      --accent:#7c6cf6; --accent2:#a78bfa; --accent-soft:rgba(124,108,246,0.15);
+      --gold:#f5b83d; --gold-soft:rgba(245,184,61,0.14);
+      --line:rgba(255,255,255,0.07);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',-apple-system,sans-serif;color:var(--ink);
+      background:
+        radial-gradient(1100px 700px at 12% -8%, rgba(124,108,246,0.16), transparent 60%),
+        radial-gradient(900px 600px at 92% 4%, rgba(245,184,61,0.08), transparent 55%),
+        #0a0b12;}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:#1a1a1a}
+    ::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+    .drawer-slide{animation:slideIn .28s cubic-bezier(.16,1,.3,1)}
+    @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+    .fade-in{animation:fadeIn .2s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .measure-bar-fill{transition:width .6s cubic-bezier(.16,1,.3,1)}
+    .signal-pulse{animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+    .score-ring{transform:rotate(-90deg);transform-origin:center}
+    /* NEW card hover */
+    .plan-card{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;position:relative}
+    .plan-card:hover{transform:scale(1.025);box-shadow:0 12px 48px rgba(0,0,0,0.7);z-index:2;cursor:pointer}
+    /* Netflix row */
+    .netflix-row{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:12px}
+    .netflix-row::-webkit-scrollbar{display:none}
+    .netflix-row{-ms-overflow-style:none;scrollbar-width:none}
+    /* tooltip */
+    .tooltip{position:relative}
+    .tooltip:hover .tooltip-box{display:block}
+    .tooltip-box{display:none;position:absolute;bottom:120%;left:50%;transform:translateX(-50%);background:#1e1e1e;border:1px solid rgba(255,255,255,0.1);padding:8px 12px;border-radius:8px;font-size:11px;color:#94a3b8;z-index:100;min-width:220px;white-space:normal}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    /* Drill-down redesign */
+    .pick-row{transition:background .14s ease,border-color .14s ease}
+    .pick-row:hover{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.18);cursor:pointer}
+    .drill-row{transition:background .14s ease}
+    .drill-row:hover{background:rgba(255,255,255,0.04);cursor:pointer}
+    .cmp-table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px}
+    .cmp-table th,.cmp-table td{padding:9px 10px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.06);white-space:nowrap}
+    .cmp-table th{position:sticky;top:0;background:#161616;z-index:3;font-weight:600;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+    .cmp-sticky{position:sticky;left:0;background:#141414;z-index:2;text-align:left;min-width:230px}
+    .cmp-table th.cmp-sticky{z-index:4;background:#161616}
+    .cmp-beat{background:rgba(34,197,94,0.13)}
+    .cmp-anchor{background:rgba(59,130,246,0.10)}
+    .cmp-anchor .cmp-sticky{background:rgba(59,130,246,0.14)}
+    /* ── Landing page ─────────────────────────────────────── */
+    .lp-grad-text{background:linear-gradient(120deg,#fff 0%,#c9c3ff 45%,#f5b83d 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    .lp-cta{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 12px 40px -8px rgba(124,108,246,0.6);transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s ease}
+    .lp-cta:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 20px 60px -10px rgba(124,108,246,0.8)}
+    .lp-cta:active{transform:translateY(0) scale(.99)}
+    .lp-glass{background:linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.02));border:1px solid var(--line);backdrop-filter:blur(12px)}
+    .lp-rise{animation:lpRise .7s cubic-bezier(.16,1,.3,1) both}
+    @keyframes lpRise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+    .lp-d1{animation-delay:.06s}.lp-d2{animation-delay:.14s}.lp-d3{animation-delay:.22s}.lp-d4{animation-delay:.3s}.lp-d5{animation-delay:.4s}
+    .lp-orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5;pointer-events:none;animation:lpFloat 14s ease-in-out infinite}
+    @keyframes lpFloat{0%,100%{transform:translate(0,0)}50%{transform:translate(24px,-24px)}}
+    .lp-star{animation:lpTwinkle 3.2s ease-in-out infinite}
+    @keyframes lpTwinkle{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+    .lp-badge{background:var(--gold-soft);border:1px solid rgba(245,184,61,0.32);color:var(--gold)}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useEffect, useCallback } = React;
+
+/* ── CMS 2026 Call-Center Measures ───────────────────────── */
+const CC_MEASURES = [
+  {id:'C22',label:'Getting Needed Care (CAHPS)',
+   desc:'Members ability to get necessary care and referrals. Call center navigation support directly impacts authorization and referral access.'},
+  {id:'C23',label:'Getting Appointments & Care Quickly (CAHPS)',
+   desc:'Speed of access to care. Call center scheduling and care coordination are primary drivers.'},
+  {id:'C24',label:'Customer Service (CAHPS)',
+   desc:'Direct CAHPS measure of member experience when calling the plan. Highest-leverage, most direct call center quality measure in the Star program.'},
+  {id:'C28',label:'Complaints about the Health Plan',
+   desc:'Plan-level complaint rate from CMS complaints database. High complaints reflect poor first-call resolution.'},
+  {id:'C29',label:'Members Choosing to Leave the Plan',
+   desc:'Voluntary disenrollment rate. CMS exit surveys cite "difficulty reaching the plan" as the #1 reason members leave.'},
+  {id:'C31',label:'Plan Makes Timely Decisions on Appeals',
+   desc:'Appeals timeliness compliance. Call center is first point of contact for all member appeals and grievances.'},
+  {id:'C33',label:'Call Center Language Access — Part C (Audit)',
+   desc:'CMS audit measure: availability of language interpreters and TTY/TDD on Part C inbound calls. A direct call center audit.'},
+  {id:'D01',label:'Call Center Language Access — Part D (Audit)',
+   desc:'CMS audit measure: language interpreter and TTY access on Part D pharmacy calls. Separate audit from C33.'},
+  {id:'D02',label:'Part D Complaints Rate',
+   desc:'Drug plan complaint rate. Often driven by pharmacy call center first-call resolution failures.'},
+  {id:'D03',label:'Members Leaving the Drug Plan',
+   desc:'Part D voluntary disenrollment. Poor member service on pharmacy calls is a primary driver.'},
+];
+
+/* CAHPS = member-reported experience; OPS = operational call-center measures */
+const CAHPS_IDS = ['C22','C23','C24'];
+const OPS_IDS   = ['C28','C29','C31','C33','D01'];
+const MEASURE_SHORT = {C22:'Getting Needed Care',C23:'Appts & Care Quickly',C24:'Customer Service',C28:'Complaints',C29:'Disenrollment',C31:'Appeals Timeliness',C33:'Lang Access · C',D01:'Lang Access · D'};
+
+/* ── Signal Config ───────────────────────────────────────── */
+const SIG = {
+  star_drop:          {label:'Star Drop',        bg:'bg-orange-500/15',text:'text-orange-400',border:'border-orange-500/30',dot:'#f97316',icon:'↓★'},
+  low_performer:      {label:'Low Performer',    bg:'bg-red-600/15',   text:'text-red-400',   border:'border-red-500/40',   dot:'#dc2626',icon:'⚠'},
+  language_gap:       {label:'Language Gap',     bg:'bg-purple-500/15',text:'text-purple-400',border:'border-purple-500/30',dot:'#a855f7',icon:'🌐'},
+  cc_weakness:        {label:'CC Quality Gap',   bg:'bg-yellow-500/15',text:'text-yellow-400',border:'border-yellow-500/30',dot:'#eab308',icon:'📞'},
+  complaint_surge:    {label:'High Complaints',  bg:'bg-yellow-600/15',text:'text-yellow-400',border:'border-yellow-500/30',dot:'#ca8a04',icon:'📢'},
+  disenrollment_spike:{label:'Disenrollment ↑',  bg:'bg-orange-600/15',text:'text-orange-400',border:'border-orange-500/30',dot:'#ea580c',icon:'🚪'},
+  appeals_risk:       {label:'Appeals Risk',     bg:'bg-red-500/15',   text:'text-red-400',   border:'border-red-500/30',   dot:'#ef4444',icon:'⚖'},
+};
+
+const SCENARIOS = {
+  recovery:   {label:'Recovery Play',  color:'#ef4444',icon:'🔄',desc:'Plan lost stars/QBP — urgency to recover bonus payments'},
+  turnaround: {label:'Turnaround Play',color:'#dc2626',icon:'🆘',desc:'Persistent low performer — below 3.0★, CMS sanction risk'},
+  language:   {label:'Language Play',  color:'#a855f7',icon:'🌐',desc:'Failed language access audit — addressable with specialized workforce'},
+  compliance: {label:'Compliance Play',color:'#f97316',icon:'⚖', desc:'Appeals/grievances deficiency — compliance-driven urgency'},
+  expansion:  {label:'Expansion Play', color:'#22c55e',icon:'🗺', desc:'High-performing plan entering new markets or scaling'},
+};
+
+/* ── Utilities ───────────────────────────────────────────── */
+const fmt  = n => n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?(n/1000).toFixed(0)+'K':String(n);
+const fmtD = n => n>=1e9?'$'+(n/1e9).toFixed(1)+'B':n>=1e6?'$'+(n/1e6).toFixed(0)+'M':'$'+n.toLocaleString();
+
+function oppColor(v){
+  if(v>=65) return '#ef4444';
+  if(v>=50) return '#f97316';
+  if(v>=35) return '#eab308';
+  if(v>=20) return '#84cc16';
+  return '#22c55e';
+}
+function oppLabel(v){
+  if(v>=65) return 'CRITICAL';
+  if(v>=50) return 'HIGH';
+  if(v>=35) return 'MEDIUM';
+  if(v>=20) return 'MONITOR';
+  return 'LOW';
+}
+function starColor(v){
+  if(v>=4.5) return '#10b981';
+  if(v>=4.0) return '#22c55e';
+  if(v>=3.5) return '#84cc16';
+  if(v>=3.0) return '#eab308';
+  if(v>=2.5) return '#f97316';
+  return '#ef4444';
+}
+function accentFromName(name){
+  const colors=['#3b82f6','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#6366f1'];
+  let h=0; for(let c of name) h=(h*31+c.charCodeAt(0))&0xffffffff;
+  return colors[Math.abs(h)%colors.length];
+}
+function tierLabel(enr){
+  if(enr>=1e6)  return {label:'ENTERPRISE', color:'#8b5cf6'};
+  if(enr>=200e3) return {label:'MID-MARKET', color:'#3b82f6'};
+  return              {label:'REGIONAL',   color:'#22c55e'};
+}
+function cahpsAvg(p){
+  const v = CAHPS_IDS.map(id=>p.measures?.[id]).filter(x=>x!=null);
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+}
+/* Call-center composite: mean of the 8 CAHPS + operational measures shown in the drill table. */
+function ccComposite(p){
+  const ids = ['C22','C23','C24','C28','C29','C31','C33','D01'];
+  const v = ids.map(id=>p.measures?.[id]).filter(x=>x!=null);
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+}
+/* North Star = the aspirational ceiling in a pool. Ranked purely on CMS published numbers:
+   2026 Overall ★ → CAHPS avg → call-center composite → reach (enrollment). No invented weighting.
+   Must have reported CAHPS data — a benchmark on the very measures we compare, never an empty "N/A" plan. */
+function pickNorthStar(pool, anchorId){
+  const cand = pool.filter(p=>p.id!==anchorId && p.overall2026!=null && cahpsAvg(p)!=null);
+  if(!cand.length) return null;
+  cand.sort((a,b)=>
+    (b.overall2026-a.overall2026) ||
+    ((cahpsAvg(b)||0)-(cahpsAvg(a)||0)) ||
+    ((ccComposite(b)||0)-(ccComposite(a)||0)) ||
+    (b.enrollment-a.enrollment)
+  );
+  return cand[0];
+}
+
+/* ── Logo domain map ─────────────────────────────────────── */
+const LOGO_DOMAINS = {
+  'unitedhealthcare':'unitedhealthcare.com','optum':'optum.com',
+  'humana':'humana.com',
+  'aetna':'aetna.com','cvs health':'cvs.com',
+  'kaiser':'kaiserpermanente.org',
+  'centene':'centene.com','wellcare':'wellcare.com','sunshine health':'sunshinehealth.com',
+  'molina':'molinahealthcare.com',
+  'cigna':'cigna.com','evernorth':'evernorth.com',
+  'elevance':'elevancehealth.com','anthem':'elevancehealth.com',
+  'scan health':'scanhealthplan.com',
+  'clover':'cloverhealth.com',
+  'oscar':'hioscar.com',
+  'devoted':'devoted.com',
+  'alignment':'alignmenthealthcare.com',
+  'caresource':'caresource.com',
+  'highmark':'highmark.com','geisinger':'geisinger.org',
+  'independence blue':'ibx.com','regence':'regence.com',
+  'medica':'medica.com','healthpartners':'healthpartners.com',
+  'zing health':'zinghealth.com',
+  'health care service':'hcsc.com','bcbsm':'bcbsm.com',
+  'florida blue':'floridablue.com','blue shield of california':'blueshieldca.com',
+};
+function getLogoDomain(orgName, parentOrg) {
+  const text = (orgName+' '+parentOrg).toLowerCase();
+  for(const [k,d] of Object.entries(LOGO_DOMAINS)) if(text.includes(k)) return d;
+  return null;
+}
+
+/* ── LogoImg ─────────────────────────────────────────────── */
+const LogoImg = ({plan, size=46}) => {
+  const [err, setErr] = useState(false);
+  const domain = getLogoDomain(plan.orgName, plan.parentOrg);
+  const accent = accentFromName(plan.orgName);
+  const initial = plan.orgName.charAt(0).toUpperCase();
+  const r = Math.round(size*0.22);
+  if(!domain||err) return (
+    <div style={{width:size,height:size,background:accent+'28',border:`1.5px solid ${accent}50`,color:accent,fontSize:size*0.42,borderRadius:r,flexShrink:0}}
+      className="flex items-center justify-center font-black">{initial}</div>
+  );
+  return <img src={`https://logo.clearbit.com/${domain}?size=${size*2}`} onError={()=>setErr(true)}
+    style={{width:size,height:size,borderRadius:r,objectFit:'contain',background:'#fff',padding:3,flexShrink:0}} alt={plan.orgName}/>;
+};
+
+/* ── Sub-components ─────────────────────────────────────── */
+const StarDots = ({value, size=13}) => {
+  if(!value) return <span className="text-slate-600 text-xs">N/A</span>;
+  const c = starColor(value);
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {[1,2,3,4,5].map(i=>{
+        const fill = i<=Math.floor(value)?1:(i-value<1&&i>Math.floor(value))?(value%1):0;
+        return (
+          <svg key={i} width={size} height={size} viewBox="0 0 24 24">
+            <defs><linearGradient id={`sg${i}${value}`}>
+              <stop offset={fill*100+'%'} stopColor={c}/>
+              <stop offset={fill*100+'%'} stopColor="#374151"/>
+            </linearGradient></defs>
+            <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"
+              fill={`url(#sg${i}${value})`}/>
+          </svg>
+        );
+      })}
+      <span style={{color:c,fontSize:size-1}} className="font-bold ml-0.5">{value.toFixed(1)}</span>
+    </span>
+  );
+};
+
+const OppRing = ({score, size=46}) => {
+  const r=(size/2)-5, circ=2*Math.PI*r, offset=circ-(score/100)*circ, c=oppColor(score);
+  return (
+    <div style={{width:size,height:size}} className="relative flex items-center justify-center flex-shrink-0">
+      <svg width={size} height={size} className="score-ring absolute">
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e2538" strokeWidth="4.5"/>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={c} strokeWidth="4.5"
+          strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+          style={{transition:'stroke-dashoffset .7s cubic-bezier(.16,1,.3,1)'}}/>
+      </svg>
+      <div className="text-center z-10">
+        <div className="font-bold leading-none" style={{color:c,fontSize:size>52?15:11}}>{score}</div>
+        <div className="text-slate-600 leading-none" style={{fontSize:8}}>OPP</div>
+      </div>
+    </div>
+  );
+};
+
+const SignalBadge = ({type, small=false}) => {
+  const s=SIG[type]; if(!s) return null;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 ${small?'py-0.5':'py-1'} text-xs font-medium ${s.bg} ${s.text} border ${s.border}`}>
+      <span>{s.icon}</span>{s.label}
+    </span>
+  );
+};
+
+const MeasureBar = ({measure, value}) => {
+  if(value==null) return (
+    <div className="flex items-center gap-3 py-2 border-b border-white/5">
+      <span className="text-xs font-mono text-slate-600">{measure.id}</span>
+      <span className="text-xs text-slate-500 truncate flex-1">{measure.label}</span>
+      <span className="text-xs text-slate-600 ml-2">Not rated</span>
+    </div>
+  );
+  const pct=(value/5)*100, c=starColor(value);
+  return (
+    <div className="tooltip">
+      <div className="flex items-center gap-2 py-2.5 border-b border-white/5">
+        <span className="text-xs font-mono text-slate-500 flex-shrink-0 w-7">{measure.id}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-slate-300 truncate">{measure.label}</span>
+            <span className="text-xs font-bold ml-2 flex-shrink-0" style={{color:c}}>{value.toFixed(1)}</span>
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+            <div className="measure-bar-fill h-full rounded-full" style={{width:pct+'%',background:`linear-gradient(90deg,${c}99,${c})`}}/>
+          </div>
+        </div>
+      </div>
+      <div className="tooltip-box">{measure.desc}</div>
+    </div>
+  );
+};
+
+/* ── Drawer Tabs ─────────────────────────────────────────── */
+const OverviewTab = ({plan}) => {
+  const diff = plan.overall2025 ? plan.overall2026 - plan.overall2025 : null;
+  const t = tierLabel(plan.enrollment);
+  return (
+    <div className="fade-in space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
+          <div className="text-slate-500 text-xs mb-1">Enrollment (May 2025)</div>
+          <div className="text-2xl font-bold text-white">{fmt(plan.enrollment)}</div>
+          <div className="text-xs mt-1 font-semibold" style={{color:t.color}}>{t.label}</div>
+        </div>
+        <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
+          <div className="text-slate-500 text-xs mb-1">2026 Overall Stars</div>
+          <div className="mt-1"><StarDots value={plan.overall2026} size={15}/></div>
+          {diff !== null && (
+            <div className={`text-xs mt-1.5 font-medium ${diff<0?'text-red-400':diff>0?'text-green-400':'text-slate-500'}`}>
+              {diff<0?`▼ ${Math.abs(diff).toFixed(1)} vs 2025 (${plan.overall2025}★)`:
+               diff>0?`▲ +${diff.toFixed(1)} vs 2025`:
+               `→ Stable vs 2025 (${plan.overall2025}★)`}
+            </div>
+          )}
+        </div>
+        <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
+          <div className="text-slate-500 text-xs mb-1">CC Measure Avg</div>
+          {plan.ccAvg
+            ? <div className="mt-1"><StarDots value={plan.ccAvg} size={13}/></div>
+            : <div className="text-sm text-slate-600 mt-2">Insufficient data</div>}
+          <div className="text-slate-600 text-xs mt-1">Call center measures only</div>
+        </div>
+        <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
+          <div className="text-slate-500 text-xs mb-1">Contract Type</div>
+          <div className="text-sm font-semibold text-white">{plan.orgType}</div>
+          <div className="text-slate-600 text-xs mt-1">{plan.id}</div>
+        </div>
+      </div>
+
+      <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
+        <div className="text-slate-500 text-xs mb-3">States Operating In ({plan.states.length})</div>
+        <div className="flex flex-wrap gap-1.5">
+          {plan.states.map(s=>(
+            <span key={s} className="bg-slate-700 text-slate-300 rounded px-2 py-0.5 text-xs font-mono">{s}</span>
+          ))}
+        </div>
+      </div>
+
+      {plan.scenarios.length>0 && (
+        <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
+          <div className="text-slate-500 text-xs mb-3">Sales Scenarios</div>
+          <div className="space-y-2.5">
+            {plan.scenarios.map(s=>{
+              const sc=SCENARIOS[s]; if(!sc) return null;
+              return (
+                <div key={s} className="flex items-start gap-2.5">
+                  <span className="text-base leading-none mt-0.5">{sc.icon}</span>
+                  <div>
+                    <div className="text-xs font-semibold" style={{color:sc.color}}>{sc.label}</div>
+                    <div className="text-xs text-slate-500">{sc.desc}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 rounded-xl p-4 border border-blue-500/20">
+        <div className="text-slate-400 text-xs mb-1">Estimated Annual Contract Value</div>
+        <div className="text-xl font-bold text-white">{fmtD(plan.contractRange[0])} – {fmtD(plan.contractRange[1])}</div>
+        <div className="text-xs text-blue-400/60 mt-1">Based on enrollment × Medicare BPO / CX engagement benchmarks</div>
+      </div>
+
+      <div className="text-xs text-slate-600 border border-white/5 rounded-lg p-3 leading-relaxed">
+        <span className="text-slate-500 font-semibold">Data source:</span> CMS 2026 Star Ratings Data Tables (Oct 8 2025) &amp;
+        CMS CPSC Monthly Enrollment (May 2025). All star ratings are official CMS published values.
+      </div>
+    </div>
+  );
+};
+
+const MeasuresTab = ({plan}) => {
+  const partC = CC_MEASURES.filter(m=>m.id.startsWith('C'));
+  const partD = CC_MEASURES.filter(m=>m.id.startsWith('D'));
+  return (
+    <div className="fade-in">
+      <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-4 text-xs text-blue-300 leading-relaxed">
+        All scores are official CMS 2026 Star Rating measure values. Hover any measure for details on the call center connection.
+      </div>
+      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Part C — Health Plan Measures</div>
+      <div className="bg-slate-800/50 rounded-xl px-4 border border-white/5 mb-4">
+        {partC.map(m=><MeasureBar key={m.id} measure={m} value={plan.measures?.[m.id]??null}/>)}
+      </div>
+      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Part D — Drug Plan Measures</div>
+      <div className="bg-slate-800/50 rounded-xl px-4 border border-white/5 mb-4">
+        {partD.map(m=><MeasureBar key={m.id} measure={m} value={plan.measures?.[m.id]??null}/>)}
+      </div>
+      <div className="bg-slate-800/40 rounded-xl p-3 border border-white/5">
+        <div className="text-xs text-slate-500 font-semibold mb-2">Rating Scale</div>
+        <div className="grid grid-cols-5 gap-1 text-center">
+          {[5,4,3,2,1].map(n=>(
+            <div key={n} className="bg-slate-900/50 rounded p-1.5">
+              <div className="text-xs font-bold" style={{color:starColor(n)}}>{n}★</div>
+              <div className="text-slate-600" style={{fontSize:9}}>{n===5?'Excellent':n===4?'Above Avg':n===3?'Average':n===2?'Below':' At Risk'}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SignalsTab = ({plan}) => {
+  if(!plan.signals?.length) return (
+    <div className="fade-in flex flex-col items-center justify-center py-16 text-center">
+      <div className="text-4xl mb-3">✓</div>
+      <div className="text-slate-400 font-medium">No Active Signals</div>
+      <div className="text-slate-600 text-sm mt-1">No CMS-documented issues detected. Monitor for future changes.</div>
+    </div>
+  );
+  return (
+    <div className="fade-in space-y-4">
+      <div className="text-xs text-slate-500 pb-1 leading-relaxed">All signals derived directly from CMS published data. Source cited on each card.</div>
+      {plan.signals.map((sig,i)=>{
+        const s=SIG[sig.type]; if(!s) return null;
+        return (
+          <div key={i} className={`rounded-xl p-4 border ${s.bg} ${s.border}`}>
+            <div className="flex items-start gap-3">
+              <div className="text-xl leading-none mt-0.5 flex-shrink-0">{s.icon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                  <SignalBadge type={sig.type} small/>
+                </div>
+                <div className={`font-semibold text-sm mb-2 leading-snug ${s.text}`}>{sig.headline}</div>
+                <div className="text-slate-400 text-xs leading-relaxed mb-2">{sig.detail}</div>
+                <div className="text-slate-600 text-xs">📋 Source: {sig.source}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const TalkingPointsTab = ({plan}) => (
+  <div className="fade-in space-y-3">
+    <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 text-xs text-green-300 leading-relaxed">
+      Talking points generated from {plan.id}'s actual CMS star ratings and measure data. Numbers are real.
+    </div>
+    {plan.talkingPoints?.map((tp,i)=>(
+      <div key={i} className="bg-slate-800/60 rounded-xl p-4 border border-white/5 flex gap-3">
+        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-bold flex items-center justify-center mt-0.5">{i+1}</div>
+        <p className="text-sm text-slate-300 leading-relaxed">{tp}</p>
+      </div>
+    ))}
+  </div>
+);
+
+/* ── Plan Drawer ─────────────────────────────────────────── */
+const PlanDrawer = ({plan, onClose}) => {
+  const [tab, setTab] = useState('overview');
+  const accent = accentFromName(plan.orgName);
+  const tabs = [
+    {id:'overview',label:'Overview'},
+    {id:'measures',label:'CC Measures'},
+    {id:'signals', label:`Signals (${plan.signals?.length||0})`},
+    {id:'talking', label:'Talking Points'},
+  ];
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}/>
+      <div className="drawer-slide relative w-full max-w-lg flex flex-col h-full shadow-2xl"
+        style={{background:'#111',borderLeft:'1px solid rgba(255,255,255,0.08)'}}>
+        <div className="flex-shrink-0 p-5" style={{borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <LogoImg plan={plan} size={40}/>
+              <div>
+                <div className="font-semibold text-white text-sm leading-tight">{plan.orgName}</div>
+                <div className="text-slate-500 text-xs mt-0.5">{plan.parentOrg}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <OppRing score={plan.opportunityScore} size={52}/>
+              <button onClick={onClose} className="w-8 h-8 rounded-lg text-slate-400 flex items-center justify-center transition-colors text-lg"
+                style={{background:'#1e1e1e'}}>×</button>
+            </div>
+          </div>
+          <div className="flex gap-1 mt-4 flex-wrap">
+            {tabs.map(t=>(
+              <button key={t.id} onClick={()=>setTab(t.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${tab===t.id?'bg-blue-500/20 text-blue-400 border border-blue-500/30':'text-slate-500 hover:text-slate-300'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-5" style={{background:'#111'}}>
+          {tab==='overview' && <OverviewTab plan={plan}/>}
+          {tab==='measures' && <MeasuresTab plan={plan}/>}
+          {tab==='signals'  && <SignalsTab  plan={plan}/>}
+          {tab==='talking'  && <TalkingPointsTab plan={plan}/>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Plan Card ───────────────────────────────────────────── */
+const PlanCard = ({plan, onClick, isSelected}) => {
+  const diff = plan.overall2025 ? plan.overall2026 - plan.overall2025 : null;
+  const t = tierLabel(plan.enrollment);
+  const c = oppColor(plan.opportunityScore);
+  const isCrit = plan.opportunityScore >= 65;
+  return (
+    <div onClick={onClick} className="plan-card rounded-xl overflow-hidden"
+      style={{
+        background: isSelected?'#252525':'#1a1a1a',
+        border: isSelected?'1.5px solid #3b82f6':isCrit?`1px solid ${c}50`:'1px solid rgba(255,255,255,0.07)',
+        boxShadow: isCrit?`0 0 0 1px ${c}20,0 4px 20px ${c}10`:undefined,
+      }}>
+      <div style={{height:3,background:`linear-gradient(90deg,${c},${c}44)`}}/>
+      <div className="p-4">
+        <div className="flex items-start gap-3 mb-3">
+          <LogoImg plan={plan} size={46}/>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold text-white leading-snug truncate">{plan.orgName}</div>
+            <div className="text-xs leading-snug mt-0.5 truncate" style={{color:'#808080'}}>{plan.parentOrg||plan.id}</div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <StarDots value={plan.overall2026} size={10}/>
+              {diff!==null&&diff!==0&&(
+                <span className={`text-xs font-semibold ${diff<0?'text-red-500':'text-green-400'}`}>
+                  {diff<0?`▼${Math.abs(diff).toFixed(1)}`:`▲${diff.toFixed(1)}`} vs '25
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-center flex-shrink-0">
+            <OppRing score={plan.opportunityScore} size={42}/>
+            <span className="font-bold mt-0.5" style={{color:c,fontSize:8}}>{oppLabel(plan.opportunityScore)}</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-1 mb-3 text-center">
+          {[['Members',fmt(plan.enrollment)],['States',plan.states.length],['CC ★',plan.ccAvg?plan.ccAvg.toFixed(1):'—'],['Contract',fmtD(plan.contractRange?.[1]||0)]].map(([lbl,val])=>(
+            <div key={lbl} className="rounded-lg py-1.5 px-1" style={{background:'#252525'}}>
+              <div className="uppercase tracking-wide" style={{fontSize:9,color:'#606060'}}>{lbl}</div>
+              <div className="text-xs font-bold text-white mt-0.5">{val}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1 mb-2">
+          <span className="rounded font-semibold" style={{fontSize:10,padding:'2px 6px',background:t.color+'20',color:t.color}}>{t.label}</span>
+          {plan.hasDSNP&&<span className="rounded font-semibold" style={{fontSize:10,padding:'2px 6px',background:'rgba(168,85,247,0.2)',color:'#c084fc'}}>D-SNP</span>}
+          {plan.isBlueCross&&<span className="rounded font-semibold" style={{fontSize:10,padding:'2px 6px',background:'rgba(59,130,246,0.2)',color:'#93c5fd'}}>BCBS</span>}
+          {plan.planTypes?.includes('ppo')&&<span className="rounded font-semibold" style={{fontSize:10,padding:'2px 6px',background:'rgba(6,182,212,0.2)',color:'#67e8f9'}}>PPO</span>}
+          {plan.hasCSNP&&<span className="rounded font-semibold" style={{fontSize:10,padding:'2px 6px',background:'rgba(236,72,153,0.2)',color:'#f9a8d4'}}>C-SNP</span>}
+        </div>
+        {plan.signals?.length>0&&(
+          <div className="flex flex-wrap gap-1">
+            {plan.signals.slice(0,3).map(s=><SignalBadge key={s.type} type={s.type} small/>)}
+            {plan.signals.length>3&&<span className="text-xs self-center" style={{color:'#606060'}}>+{plan.signals.length-3}</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ── Netflix Row ─────────────────────────────────────────── */
+const NetflixRow = ({title, icon, plans, onSelect, selected}) => {
+  if(!plans.length) return null;
+  return (
+    <div className="mb-10">
+      <div className="flex items-center gap-3 mb-3 px-1">
+        <span className="text-xl">{icon}</span>
+        <h2 className="text-white font-bold text-lg">{title}</h2>
+        <span className="text-sm font-normal" style={{color:'#808080'}}>{plans.length} plans</span>
+      </div>
+      <div className="netflix-row">
+        {plans.map(p=>(
+          <div key={p.id} style={{minWidth:296,maxWidth:316,flexShrink:0,scrollSnapAlign:'start'}}>
+            <PlanCard plan={p} onClick={()=>onSelect(p)} isSelected={selected?.id===p.id}/>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ── Drill-Down: Plan Picker (entry) ─────────────────────── */
+const PlanPicker = ({plans, onPick}) => {
+  const [q, setQ] = useState('');
+  const matches = useMemo(()=>{
+    const s=q.trim().toLowerCase();
+    const base=[...plans].sort((a,b)=>b.enrollment-a.enrollment);
+    if(!s) return base.slice(0,12);
+    return base.filter(p=>
+      p.orgName.toLowerCase().includes(s) ||
+      (p.parentOrg||'').toLowerCase().includes(s) ||
+      p.id.toLowerCase().includes(s) ||
+      p.states.some(st=>st.toLowerCase()===s)
+    ).slice(0,50);
+  },[q,plans]);
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-10 fade-in">
+      <div className="text-center mb-7">
+        <div className="text-3xl font-black text-white mb-2">Which plan do you want to drill into?</div>
+        <div className="text-slate-500 text-sm">Pick an anchor plan — we'll surface every plan sharing its states, their Star ratings, and the CAHPS &amp; call-center measures driving the gap.</div>
+      </div>
+      <div className="relative mb-6">
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg">🔍</span>
+        <input autoFocus value={q} onChange={e=>setQ(e.target.value)}
+          placeholder="Search by plan name, parent org, contract ID (e.g. H3259), or state (e.g. TN)…"
+          className="w-full pl-12 pr-4 py-3.5 rounded-xl text-sm text-white outline-none border border-white/10 focus:border-blue-500/60"
+          style={{background:'#1a1a1a'}}/>
+      </div>
+      <div className="text-xs text-slate-500 uppercase tracking-wider mb-2 px-1">{q.trim()?`${matches.length} match${matches.length===1?'':'es'}`:'Top plans by enrollment'}</div>
+      <div className="rounded-xl border border-white/5 overflow-hidden" style={{background:'#161616'}}>
+        {matches.map(p=>(
+          <button key={p.id} onClick={()=>onPick(p)}
+            className="pick-row w-full flex items-center gap-3.5 px-4 py-3 border-b border-white/5 text-left">
+            <LogoImg plan={p} size={40}/>
+            <div className="flex-1 min-w-0">
+              <div className="text-white font-semibold text-sm truncate">{p.orgName}</div>
+              <div className="text-slate-500 text-xs truncate">{p.id} · {p.parentOrg||'—'} · {p.states.length} state{p.states.length===1?'':'s'} · {fmt(p.enrollment)} members</div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {p.hasDSNP && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">D-SNP</span>}
+              {p.isBlueCross && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">BCBS</span>}
+              <StarDots value={p.overall2026} size={12}/>
+            </div>
+          </button>
+        ))}
+        {!matches.length && <div className="px-4 py-6 text-center text-slate-500 text-sm">No plans match "{q}".</div>}
+      </div>
+    </div>
+  );
+};
+
+/* ── Drill-Down: comparison measure cell ─────────────────── */
+const CmpCell = ({val, anchorVal, higherIsBetter=true}) => {
+  if(val==null) return <td className="text-slate-600">–</td>;
+  const beats = anchorVal!=null && (higherIsBetter ? val>anchorVal : val<anchorVal);
+  return (
+    <td className={beats?'cmp-beat':''}>
+      <span style={{color:starColor(val)}} className="font-semibold">{val.toFixed(1)}</span>
+      {beats && <span className="text-green-400 ml-1">▲</span>}
+    </td>
+  );
+};
+
+/* ── Drill-Down: North Star benchmark card ───────────────── */
+const NorthStarCard = ({plan, anchor, label, icon, accent, onOpen}) => {
+  if(!plan) return null;
+  const shared = plan.states.filter(s=>anchor.states.includes(s));
+  const nsCahps = cahpsAvg(plan), anCahps = cahpsAvg(anchor);
+  const nsCc = ccComposite(plan);
+  const starGap = (anchor.overall2026!=null && plan.overall2026!=null) ? (plan.overall2026-anchor.overall2026) : null;
+  const cahpsGap = (nsCahps!=null && anCahps!=null) ? (nsCahps-anCahps) : null;
+  return (
+    <button onClick={()=>onOpen(plan)}
+      className="text-left rounded-xl p-4 border w-full transition-all hover:brightness-110"
+      style={{borderColor:accent+'55',background:`linear-gradient(135deg,${accent}18,#161616 60%)`}}>
+      <div className="flex items-center gap-2 mb-2.5">
+        <span className="text-sm">{icon}</span>
+        <span className="text-xs font-bold uppercase tracking-wider" style={{color:accent}}>{label}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <LogoImg plan={plan} size={44}/>
+        <div className="min-w-0 flex-1">
+          <div className="text-white font-bold text-sm truncate">{plan.orgName}</div>
+          {plan.contractName && (
+            <div className="text-slate-400 text-xs truncate" title={plan.contractName} style={{textTransform:'capitalize'}}>
+              {plan.contractName.toLowerCase()}
+            </div>
+          )}
+          <div className="text-slate-600 text-[11px] truncate">
+            {plan.id} · {plan.enrollment.toLocaleString()} members · {FOOTPRINT_LABEL[footprintOf(plan)].split(' (')[0]}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2.5 text-[11px] leading-relaxed">
+        <span className="text-slate-500">Operates in ({plan.states.length}): </span>
+        {plan.states.length
+          ? plan.states.map((s,i)=>(
+              <span key={s} className={shared.includes(s)?'text-blue-300 font-semibold':'text-slate-400'}>
+                {s}{i<plan.states.length-1?', ':''}
+              </span>
+            ))
+          : <span className="text-slate-600">—</span>}
+        {shared.length>0 && <span className="text-slate-600"> · blue = shared with {anchor.orgName}</span>}
+      </div>
+      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-white/5">
+        <div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Overall</div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold" style={{color:starColor(plan.overall2026)}}>{plan.overall2026?.toFixed(1)}★</span>
+            {starGap>0 && <span className="text-green-400 text-xs">+{starGap.toFixed(1)} vs you</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider">CAHPS avg</div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold" style={{color:nsCahps!=null?starColor(nsCahps):'#64748b'}}>{nsCahps!=null?nsCahps.toFixed(2):'N/A'}</span>
+            {cahpsGap>0 && <span className="text-green-400 text-xs">+{cahpsGap.toFixed(2)}</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider">Call-ctr composite</div>
+          <div className="font-bold" style={{color:nsCc!=null?starColor(nsCc):'#64748b'}}>{nsCc!=null?nsCc.toFixed(2):'N/A'}</div>
+        </div>
+      </div>
+    </button>
+  );
+};
+
+/* ── Drill-Down: main comparison view ────────────────────── */
+const footprintOf = p => p.states.length>=5?'national':(p.states.length>=2?'regional':'single');
+const FOOTPRINT_LABEL = {national:'National (5+ states)', regional:'Regional (2-4 states)', single:'Single state'};
+
+const DrillView = ({anchor, allPlans, onBack, onOpen}) => {
+  const [stateFilter, setStateFilter] = useState(null);
+  const [sizeFilter, setSizeFilter] = useState(null);      // 'similar' | 'larger' | 'smaller'
+  const [footprint, setFootprint] = useState(null);        // 'national' | 'regional' | 'single'
+  const sizeLo = Math.round(anchor.enrollment*0.5);
+  const sizeHi = Math.round(anchor.enrollment*1.5);
+  const anchorFootprint = footprintOf(anchor);
+  const inMarketStar = useMemo(()=>pickNorthStar(allPlans.filter(p=>p.states.some(s=>anchor.states.includes(s))), anchor.id),[allPlans,anchor]);
+  const nationalStar = useMemo(()=>pickNorthStar(allPlans, anchor.id),[allPlans,anchor]);
+  const sameStar = inMarketStar && nationalStar && inMarketStar.id===nationalStar.id;
+  const peers = useMemo(()=>{
+    return allPlans
+      .filter(p=>p.id!==anchor.id && p.states.some(s=>anchor.states.includes(s)))
+      .filter(p=>!stateFilter || p.states.includes(stateFilter))
+      .filter(p=>{
+        if(!sizeFilter) return true;
+        if(sizeFilter==='similar') return p.enrollment>=sizeLo && p.enrollment<=sizeHi;
+        if(sizeFilter==='larger')  return p.enrollment>sizeHi;
+        if(sizeFilter==='smaller') return p.enrollment<sizeLo;
+        return true;
+      })
+      .filter(p=>!footprint || footprintOf(p)===footprint)
+      .sort((a,b)=>(b.overall2026-a.overall2026)||(b.enrollment-a.enrollment));
+  },[anchor,allPlans,stateFilter,sizeFilter,footprint,sizeLo,sizeHi]);
+  const anyFilter = !!(stateFilter||sizeFilter||footprint);
+  const anchorCahps = cahpsAvg(anchor);
+  const rows = [anchor, ...peers];
+  const ALL_IDS = [...CAHPS_IDS, ...OPS_IDS];
+  return (
+    <div className="px-6 py-6 fade-in">
+      <button onClick={onBack} className="text-slate-400 hover:text-white text-sm mb-4 flex items-center gap-1.5">← Choose a different plan</button>
+
+      {/* Anchor header */}
+      <div className="rounded-xl border border-blue-500/25 p-5 mb-5 flex items-center gap-4" style={{background:'linear-gradient(90deg,rgba(59,130,246,0.10),#161616)'}}>
+        <LogoImg plan={anchor} size={56}/>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-blue-300 font-semibold uppercase tracking-wider mb-0.5">Drilling into</div>
+          <div className="text-white font-bold text-xl truncate">{anchor.orgName}</div>
+          <div className="text-slate-500 text-xs mt-0.5">{anchor.id} · {anchor.parentOrg||'—'} · {fmt(anchor.enrollment)} members · Serves {anchor.states.join(', ')}</div>
+        </div>
+        <div className="text-center flex-shrink-0">
+          <div className="text-xs text-slate-500 mb-1">2026 Overall</div>
+          <StarDots value={anchor.overall2026} size={15}/>
+          <div className="text-xs text-slate-500 mt-1">CAHPS avg {anchorCahps!=null?anchorCahps.toFixed(2):'N/A'}</div>
+        </div>
+      </div>
+
+      {/* North Star — the aspirational ceiling */}
+      {(inMarketStar||nationalStar) && (
+        <div className="mb-5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-lg">🌟</span>
+            <span className="text-white font-bold text-base">North Star — what "best-in-class" looks like</span>
+          </div>
+          <div className="text-slate-500 text-xs mb-3">
+            The highest-rated plans by CMS 2026 Overall Star, then CAHPS avg, then call-center composite. This is the ceiling {anchor.orgName} can aim for — the perspective on what's achievable.
+          </div>
+          {sameStar ? (
+            <div>
+              <NorthStarCard plan={nationalStar} anchor={anchor} onOpen={onOpen}
+                label="Leads your market AND the nation" icon="🌟" accent="#f59e0b"/>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <NorthStarCard plan={inMarketStar} anchor={anchor} onOpen={onOpen}
+                label="Best in your markets" icon="📍" accent="#3b82f6"/>
+              <NorthStarCard plan={nationalStar} anchor={anchor} onOpen={onOpen}
+                label="Best in the nation" icon="🌐" accent="#f59e0b"/>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Shared-state filter chips */}
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Shared states:</span>
+        <button onClick={()=>setStateFilter(null)}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${!stateFilter?'text-white border-blue-500/60':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+          style={!stateFilter?{background:'rgba(59,130,246,0.20)'}:{}}>All ({anchor.states.length})</button>
+        {anchor.states.map(st=>(
+          <button key={st} onClick={()=>setStateFilter(st===stateFilter?null:st)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${stateFilter===st?'text-white border-blue-500/60':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+            style={stateFilter===st?{background:'rgba(59,130,246,0.20)'}:{}}>{st}</button>
+        ))}
+      </div>
+
+      {/* Size filter chips */}
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Plan size:</span>
+        <button onClick={()=>setSizeFilter(null)}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${!sizeFilter?'text-white border-blue-500/60':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+          style={!sizeFilter?{background:'rgba(59,130,246,0.20)'}:{}}>Any size</button>
+        {[['similar',`Similar size (${fmt(sizeLo)}–${fmt(sizeHi)})`],['smaller',`Smaller (< ${fmt(sizeLo)})`],['larger',`Larger (> ${fmt(sizeHi)})`]].map(([v,l])=>(
+          <button key={v} onClick={()=>setSizeFilter(v===sizeFilter?null:v)}
+            title={`Compared against ${anchor.orgName}'s ${fmt(anchor.enrollment)} members (±50%)`}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${sizeFilter===v?'text-white border-emerald-500/60':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+            style={sizeFilter===v?{background:'rgba(16,185,129,0.20)'}:{}}>{l}</button>
+        ))}
+      </div>
+
+      {/* Footprint filter chips */}
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Footprint:</span>
+        <button onClick={()=>setFootprint(null)}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${!footprint?'text-white border-blue-500/60':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+          style={!footprint?{background:'rgba(59,130,246,0.20)'}:{}}>Any footprint</button>
+        {['national','regional','single'].map(v=>(
+          <button key={v} onClick={()=>setFootprint(v===footprint?null:v)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${footprint===v?'text-white border-amber-500/60':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+            style={footprint===v?{background:'rgba(245,158,11,0.20)'}:{}}>
+            {FOOTPRINT_LABEL[v]}{v===anchorFootprint && <span className="text-blue-300 ml-1">· like you</span>}
+          </button>
+        ))}
+        {anyFilter && <button onClick={()=>{setStateFilter(null);setSizeFilter(null);setFootprint(null);}}
+          className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white underline decoration-dotted">Clear filters</button>}
+      </div>
+
+      <div className="text-sm text-slate-400 mb-2">
+        <span className="text-white font-semibold">{peers.length}</span> peer plan{peers.length===1?'':'s'} share {stateFilter?stateFilter:'a state'} with {anchor.orgName}
+        {sizeFilter && <span className="text-emerald-300">, {sizeFilter==='similar'?`sized ${fmt(sizeLo)}–${fmt(sizeHi)} members`:sizeFilter==='smaller'?`under ${fmt(sizeLo)} members`:`over ${fmt(sizeHi)} members`}</span>}
+        {footprint && <span className="text-amber-300">, {FOOTPRINT_LABEL[footprint].toLowerCase()}</span>}.
+        <span className="text-slate-500"> Green ▲ = peer outperforms {anchor.orgName} on that measure.</span>
+      </div>
+      {!peers.length && <div className="rounded-xl border border-white/5 px-4 py-6 text-center text-slate-500 text-sm mb-6" style={{background:'#141414'}}>
+        No peer plans match these filters. Try widening the size band or footprint.
+      </div>}
+
+      {/* Comparison table */}
+      <div className="rounded-xl border border-white/5 overflow-auto mb-6" style={{background:'#141414',maxHeight:'52vh',display:peers.length?'':'none'}}>
+        <table className="cmp-table">
+          <thead>
+            <tr>
+              <th className="cmp-sticky">Plan</th>
+              <th>Overall ★</th>
+              <th>CAHPS avg</th>
+              {CAHPS_IDS.map(id=><th key={id} title={MEASURE_SHORT[id]}>{id}<div style={{fontWeight:400,textTransform:'none',letterSpacing:0}} className="text-slate-600">{MEASURE_SHORT[id]}</div></th>)}
+              {OPS_IDS.map(id=><th key={id} title={MEASURE_SHORT[id]}>{id}<div style={{fontWeight:400,textTransform:'none',letterSpacing:0}} className="text-slate-600">{MEASURE_SHORT[id]}</div></th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(p=>{
+              const isAnchor = p.id===anchor.id;
+              const pc = cahpsAvg(p);
+              return (
+                <tr key={p.id} onClick={()=>onOpen(p)} className={`drill-row ${isAnchor?'cmp-anchor':''}`}>
+                  <td className="cmp-sticky">
+                    <div className="flex items-center gap-2.5">
+                      <LogoImg plan={p} size={30}/>
+                      <div className="min-w-0">
+                        <div className="text-white font-medium truncate flex items-center gap-1.5" style={{maxWidth:200}}>
+                          {isAnchor && <span className="text-blue-400 text-xs font-bold">★ YOU</span>}
+                          {p.orgName}
+                        </div>
+                        <div className="text-slate-600 text-xs flex items-center gap-1.5">
+                          {p.id}
+                          {p.hasDSNP && <span className="text-purple-300">D-SNP</span>}
+                          {p.isBlueCross && <span className="text-blue-300">BCBS</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span style={{color:starColor(p.overall2026)}} className="font-bold">{p.overall2026?.toFixed(1)}</span></td>
+                  <td>{pc!=null?<span style={{color:starColor(pc)}} className="font-semibold">{pc.toFixed(2)}{!isAnchor&&anchorCahps!=null&&pc>anchorCahps&&<span className="text-green-400 ml-1">▲</span>}</span>:<span className="text-slate-600">–</span>}</td>
+                  {ALL_IDS.map(id=>(
+                    isAnchor
+                      ? <td key={id}>{p.measures?.[id]!=null?<span style={{color:starColor(p.measures[id])}} className="font-semibold">{p.measures[id].toFixed(1)}</span>:<span className="text-slate-600">–</span>}</td>
+                      : <CmpCell key={id} val={p.measures?.[id]} anchorVal={anchor.measures?.[id]}/>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Signals driving the anchor's scores */}
+      <div className="mb-2">
+        <div className="text-white font-bold text-lg mb-1">Signals driving {anchor.orgName}'s scores</div>
+        <div className="text-slate-500 text-sm mb-3">What in the CMS data explains this plan's CAHPS &amp; call-center performance.</div>
+      </div>
+      {anchor.signals?.length ? (
+        <div className="grid grid-cols-2 gap-3">
+          {anchor.signals.map((s,i)=>{
+            const cfg=SIG[s.type]||{};
+            return (
+              <div key={i} className={`rounded-xl p-4 border ${cfg.border||'border-white/10'}`} style={{background:'#161616'}}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <SignalBadge type={s.type}/>
+                </div>
+                <div className="text-white font-semibold text-sm mb-1">{s.headline}</div>
+                <div className="text-slate-400 text-xs mb-2 leading-relaxed">{s.detail}</div>
+                {s.source && <div className="text-slate-600 text-xs italic">Source: {s.source}</div>}
+              </div>
+            );
+          })}
+        </div>
+      ) : <div className="text-slate-500 text-sm rounded-xl p-4 border border-white/5" style={{background:'#161616'}}>No signals flagged for this plan — its measures are within normal ranges.</div>}
+    </div>
+  );
+};
+
+/* ── Summary Cards ───────────────────────────────────────── */
+const SummaryCards = ({plans, total}) => {
+  const critical = plans.filter(p=>p.opportunityScore>=65).length;
+  const totalLives = plans.reduce((a,b)=>a+b.enrollment,0);
+  const tam = plans.reduce((a,b)=>a+b.contractRange[1],0);
+  const dropped = plans.filter(p=>p.overall2025&&p.overall2026<p.overall2025).length;
+  return (
+    <div className="grid grid-cols-5 gap-3 px-5 py-3" style={{background:'#111'}}>
+      {[
+        {label:'Plans in Database',  val:total,             sub:'Rated MA contracts, CMS 2026',      color:'#3b82f6', icon:'📋'},
+        {label:'Filtered / Shown',   val:plans.length,      sub:'Matching current filters',          color:'#8b5cf6', icon:'🔍'},
+        {label:'Critical Priority',  val:critical,          sub:'Opportunity score ≥ 65',            color:'#ef4444', icon:'🎯'},
+        {label:'Plans w/ Star Drop', val:dropped,           sub:'2025 → 2026 decline (filtered)',    color:'#f97316', icon:'↓★'},
+        {label:'Total TAM (Filtered)',val:fmtD(tam),        sub:'Max annual contract value',         color:'#10b981', icon:'💰'},
+      ].map((c,i)=>(
+        <div key={i} className="rounded-xl p-4 border border-white/5" style={{background:'#1a1a1a'}}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-slate-500">{c.label}</span>
+            <span className="text-lg">{c.icon}</span>
+          </div>
+          <div className="text-xl font-bold" style={{color:c.color}}>{c.val}</div>
+          <div className="text-xs text-slate-600 mt-1">{c.sub}</div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ── Filter Sidebar ──────────────────────────────────────── */
+const FilterSidebar = ({filters, setFilters, allStates}) => {
+  const Chip = ({label, active, color, onClick}) => (
+    <button onClick={onClick}
+      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${active?'text-white':'text-slate-500 border-slate-700 hover:text-slate-300 hover:border-slate-500'}`}
+      style={active?{background:(color||'#3b82f6')+'25',borderColor:(color||'#3b82f6')+'60',color:color||'#3b82f6'}:{}}>
+      {label}
+    </button>
+  );
+  const SectionLabel = ({children}) => (
+    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-5 mb-2 pb-1 border-b border-white/5"
+      style={{background:'#111'}}>{children}</div>
+  );
+  const activeCount = [filters.minOpp,filters.stars,filters.tier,filters.change,filters.signal,filters.state,filters.planType,filters.snp,filters.enrollMin].filter(Boolean).length + (filters.blueCross?1:0) + (filters.search?1:0);
+  return (
+    <div className="w-64 flex-shrink-0 overflow-y-auto px-4 py-4 border-r border-white/5" style={{background:'#0a0a0a'}}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Filters</div>
+        {activeCount>0 && <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full px-2 py-0.5 font-medium">{activeCount} active</span>}
+      </div>
+
+      <input type="text" placeholder="Search plan, org, or contract ID…" value={filters.search}
+        onChange={e=>setFilters(f=>({...f,search:e.target.value}))}
+        className="w-full border border-white/8 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-blue-500/50 mb-1"
+        style={{background:'#1a1a1a'}}/>
+
+      {/* ── Opportunity Score ── */}
+      <SectionLabel>Opportunity Score</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        {[[null,'All'],[65,'Critical 65+'],[50,'High 50+'],[35,'Medium 35+']].map(([v,l])=>(
+          <Chip key={l} label={l} active={filters.minOpp===v} color={v>=65?'#ef4444':v>=50?'#f97316':v>=35?'#eab308':'#3b82f6'}
+            onClick={()=>setFilters(f=>({...f,minOpp:v}))}/>
+        ))}
+      </div>
+
+      {/* ── Star Rating ── */}
+      <SectionLabel>2026 Star Rating</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        {[[null,'All'],['low','≤ 2.5★'],['3.0','3.0★'],['3.5','3.5★'],['high','4.0+★']].map(([v,l])=>(
+          <Chip key={l} label={l} active={filters.stars===v} color={v==='low'?'#ef4444':v==='high'?'#22c55e':'#eab308'}
+            onClick={()=>setFilters(f=>({...f,stars:v}))}/>
+        ))}
+      </div>
+
+      {/* ── Star Change ── */}
+      <SectionLabel>Star Change (YoY)</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        {[[null,'All'],['drop','↓ Dropped'],['stable','→ Stable'],['improved','↑ Improved']].map(([v,l])=>(
+          <Chip key={l} label={l} active={filters.change===v} color={v==='drop'?'#ef4444':v==='improved'?'#22c55e':'#94a3b8'}
+            onClick={()=>setFilters(f=>({...f,change:v}))}/>
+        ))}
+      </div>
+
+      {/* ── Enrollment Size ── */}
+      <SectionLabel>Enrollment Size</SectionLabel>
+      <div className="grid grid-cols-2 gap-1">
+        {[[null,null,'All Sizes',null],[null,50000,'< 50K','#94a3b8'],[50000,200000,'50K – 200K','#22c55e'],[200000,1000000,'200K – 1M','#3b82f6'],[1000000,null,'1M+','#8b5cf6']].map(([lo,hi,l,c])=>(
+          <button key={l} onClick={()=>setFilters(f=>({...f,enrollMin:lo,enrollMax:hi}))}
+            className={`text-xs px-2 py-1.5 rounded-lg border transition-all ${filters.enrollMin===lo&&filters.enrollMax===hi?'text-white':'text-slate-500 border-slate-700 hover:text-slate-300'}`}
+            style={filters.enrollMin===lo&&filters.enrollMax===hi&&c?{background:c+'22',borderColor:c+'55',color:c}:{}}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Plan Type ── */}
+      <SectionLabel>Plan Type</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        {[[null,'All'],['hmo','HMO / HMO-POS'],['ppo','PPO'],['pffs','PFFS']].map(([v,l])=>(
+          <Chip key={l} label={l} active={filters.planType===v} color='#38bdf8'
+            onClick={()=>setFilters(f=>({...f,planType:v}))}/>
+        ))}
+      </div>
+
+      {/* ── Special Needs Plans ── */}
+      <SectionLabel>Special Needs Plans</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        {[[null,'All'],['any','Any SNP'],['dsnp','D-SNP (Dual)'],['csnp','C-SNP (Chronic)'],['isnp','I-SNP (Inst.)'],['none','No SNP']].map(([v,l])=>(
+          <Chip key={l} label={l} active={filters.snp===v} color={v==='dsnp'?'#a855f7':v==='csnp'?'#ec4899':v==='isnp'?'#f97316':'#64748b'}
+            onClick={()=>setFilters(f=>({...f,snp:v}))}/>
+        ))}
+      </div>
+      <div className="text-xs text-slate-600 mt-1">D-SNP = Dual Medicare+Medicaid eligible</div>
+
+      {/* ── Quick Filters ── */}
+      <SectionLabel>Quick Filters</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={()=>setFilters(f=>({...f,blueCross:!f.blueCross}))}
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${filters.blueCross?'text-white bg-blue-700/30 border-blue-600/50':'text-slate-500 border-slate-700 hover:text-slate-300'}`}>
+          🔵 Blue Cross / BCBS
+        </button>
+      </div>
+
+      {/* ── Active Signal ── */}
+      <SectionLabel>Active Signal</SectionLabel>
+      <div className="flex flex-wrap gap-1.5">
+        <Chip label="All" active={!filters.signal} onClick={()=>setFilters(f=>({...f,signal:null}))}/>
+        {Object.entries(SIG).map(([k,v])=>(
+          <Chip key={k} label={v.label} active={filters.signal===k} color={v.dot}
+            onClick={()=>setFilters(f=>({...f,signal:k}))}/>
+        ))}
+      </div>
+
+      {/* ── State ── */}
+      <SectionLabel>State</SectionLabel>
+      <select value={filters.state||''} onChange={e=>setFilters(f=>({...f,state:e.target.value||null}))}
+        className="w-full border border-white/8 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500/50"
+        style={{background:'#1a1a1a'}}>
+        <option value="">All States</option>
+        {allStates.map(s=><option key={s} value={s}>{s}</option>)}
+      </select>
+      <div className="text-xs text-slate-600 mt-1">Filters to plans operating in that state</div>
+
+      {/* ── Clear ── */}
+      <button onClick={()=>setFilters({search:'',minOpp:null,stars:null,tier:null,change:null,signal:null,state:null,planType:null,snp:null,blueCross:false,enrollMin:null,enrollMax:null})}
+        className={`w-full text-xs py-2 border rounded-lg transition-colors mt-5 ${activeCount>0?'text-red-400 border-red-500/30 hover:bg-red-500/10':'text-slate-500 border-white/5 hover:text-slate-300 hover:border-white/10'}`}>
+        {activeCount>0?`✕ Clear ${activeCount} Filter${activeCount>1?'s':''}` : 'Clear All Filters'}
+      </button>
+
+      <div className="mt-5 border border-white/5 rounded-xl p-3" style={{background:'#111'}}>
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Data Sources</div>
+        <div className="space-y-2 text-xs text-slate-500">
+          <div>⭐ <span className="text-slate-400">Star Ratings:</span> CMS 2026 &amp; 2025 Star Ratings Data Tables</div>
+          <div>👥 <span className="text-slate-400">Enrollment:</span> CMS CPSC May 2025</div>
+          <div>📊 <span className="text-slate-400">Measures:</span> CMS 2026 Measure Stars</div>
+          <div>📋 <span className="text-slate-400">Plan Types / SNP:</span> CMS CPSC Contract Info May 2025</div>
+          <div className="text-slate-600 pt-1">Published by CMS Oct 8, 2025. All values are official CMS data — no estimates.</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Landing Page (Russell Brunson-style) ────────────────── */
+const Star = ({size=16,color='var(--gold)',cls=''}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color} className={cls}><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 7.1-1.01L12 2z"/></svg>
+);
+
+const Landing = ({plans, loading, onEnter}) => {
+  const stats = useMemo(()=>{
+    if(!plans?.length) return {plans:'900+',critical:'120+',members:'33M+',states:'50'};
+    const critical = plans.filter(p=>p.opportunityScore>=65).length;
+    const members  = plans.reduce((a,p)=>a+(p.enrollment||0),0);
+    const states   = new Set(plans.flatMap(p=>p.states||[])).size;
+    return {
+      plans:  plans.length.toLocaleString(),
+      critical: critical.toLocaleString(),
+      members: members>=1e6?(members/1e6).toFixed(0)+'M':fmt(members),
+      states: String(states),
+    };
+  },[plans]);
+
+  const CTA = ({children,className=''}) => (
+    <button onClick={onEnter}
+      className={`lp-cta rounded-xl font-bold px-8 py-4 text-base inline-flex items-center gap-2 ${className}`}>
+      {children}
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    </button>
+  );
+
+  const painPoints = [
+    {icon:'🕰️',t:'You find out too late',d:'By the time a plan’s Star drop hits the news, three competitors already have a meeting booked. The signal was public in October — you just didn’t see it.'},
+    {icon:'🗂️',t:'The data is a swamp',d:'CMS publishes everything in dozens of raw tables. Turning enrollment files and CAHPS measures into a call-list eats days you don’t have.'},
+    {icon:'🎯',t:'No way to rank the room',d:'Which of 900 plans should you call first? Without a score that ties member pain to contract value, every list is just a guess.'},
+  ];
+  const steps = [
+    {n:'01',t:'Pick a target',d:'Start from any Medicare Advantage plan — or let the discovery rows surface the ones bleeding stars, members, and complaints.'},
+    {n:'02',t:'See the whole board',d:'Drill down into a plan’s CAHPS and call-center measures side-by-side with its market, and spot the exact gap you can close.'},
+    {n:'03',t:'Walk in with the pitch',d:'Every account comes scored, tagged with a play, and sized with an estimated contract value. Open the drawer, copy the story, book the meeting.'},
+  ];
+  const features = [
+    {icon:'📊',t:'Opportunity Scoring',d:'One number, 0–100, fusing Star movement, member experience, and reachable contract value — so your call-list ranks itself.'},
+    {icon:'📡',t:'Live Signal Detection',d:'Star drops, language-access audit fails, complaint surges, disenrollment spikes — flagged the moment CMS publishes them.'},
+    {icon:'🔬',t:'Drill-Down Comparison',d:'Put any plan head-to-head against its market on all 10 call-center measures, with the North-Star benchmark auto-selected.'},
+    {icon:'🎬',t:'Discovery Rows',d:'A curated, browse-first surface — "Star Drops", "Language Gaps", "Enterprise Accounts" — that turns a database into a shortlist.'},
+    {icon:'💰',t:'Contract Value Sizing',d:'Every plan carries an estimated annual contract range from enrollment × BPO/CX benchmarks, so you triage by revenue, not vibes.'},
+    {icon:'🛡️',t:'100% Official CMS Data',d:'Nothing invented. Every star, complaint, and enrollment figure traces to CMS 2026 Star Ratings and CPSC enrollment files.'},
+  ];
+
+  return (
+    <div className="min-h-screen overflow-x-hidden" style={{color:'var(--ink)'}}>
+      {/* nav */}
+      <nav className="sticky top-0 z-40 px-6 md:px-10 py-4 flex items-center justify-between lp-glass">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{background:'linear-gradient(135deg,var(--accent),var(--accent2))',boxShadow:'0 6px 18px -4px rgba(124,108,246,0.7)'}}>
+            <Star size={19} color="#fff"/>
+          </div>
+          <div className="font-black text-white text-base tracking-tight">STAR<span style={{color:'var(--gold)'}}>·</span>EXPLORER</div>
+        </div>
+        <button onClick={onEnter} className="text-sm font-bold px-5 py-2.5 rounded-lg lp-cta">Launch app</button>
+      </nav>
+
+      {/* hero */}
+      <header className="relative px-6 md:px-10 pt-20 pb-24 max-w-6xl mx-auto text-center">
+        <div className="lp-orb" style={{width:340,height:340,background:'rgba(124,108,246,0.5)',top:-60,left:-40}}/>
+        <div className="lp-orb" style={{width:300,height:300,background:'rgba(245,184,61,0.32)',top:20,right:-30,animationDelay:'3s'}}/>
+        <div className="relative">
+          <div className="lp-rise inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest lp-badge mb-7">
+            <Star size={12}/> Built for Medicare Advantage sales teams
+          </div>
+          <h1 className="lp-rise lp-d1 font-black leading-[1.05] tracking-tight mb-6"
+            style={{fontSize:'clamp(2.5rem,6vw,4.75rem)'}}>
+            <span className="text-white">Find your next MA account</span><br/>
+            <span className="lp-grad-text">before your competitors do.</span>
+          </h1>
+          <p className="lp-rise lp-d2 max-w-2xl mx-auto text-lg md:text-xl leading-relaxed mb-10" style={{color:'var(--muted)'}}>
+            Star Explorer turns the entire CMS Medicare Advantage universe into a ranked,
+            signal-rich call list — so you spend your week closing the plans that are
+            <span className="text-white font-semibold"> losing stars, members, and patience</span>, not digging through spreadsheets.
+          </p>
+          <div className="lp-rise lp-d3 flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+            <CTA>{loading?'Launch Star Explorer':'Explore the opportunities'}</CTA>
+            <button onClick={onEnter} className="text-sm font-semibold px-6 py-4 rounded-xl lp-glass text-white hover:text-white transition-colors">
+              See a live drill-down →
+            </button>
+          </div>
+          <div className="lp-rise lp-d4 flex items-center justify-center gap-2 text-xs" style={{color:'var(--muted)'}}>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"/>
+            No login. No setup. 100% official CMS 2026 Star Ratings data.
+          </div>
+
+          {/* live stat band */}
+          <div className="lp-rise lp-d5 grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 max-w-4xl mx-auto">
+            {[
+              {v:stats.plans,   l:'MA plans mapped'},
+              {v:stats.critical,l:'Critical opportunities',hot:true},
+              {v:stats.members, l:'Members covered'},
+              {v:stats.states,  l:'States & territories'},
+            ].map((s,i)=>(
+              <div key={i} className="lp-glass rounded-2xl px-5 py-6">
+                <div className="font-black text-3xl md:text-4xl mb-1" style={{color:s.hot?'var(--gold)':'#fff'}}>{s.v}</div>
+                <div className="text-xs uppercase tracking-wider" style={{color:'var(--muted)'}}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      {/* authority strip */}
+      <div className="border-y" style={{borderColor:'var(--line)',background:'rgba(255,255,255,0.015)'}}>
+        <div className="max-w-6xl mx-auto px-6 md:px-10 py-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs uppercase tracking-widest" style={{color:'var(--muted)'}}>
+          <span>Sourced from</span>
+          <span className="text-white font-bold normal-case tracking-normal">CMS 2026 Star Ratings</span>
+          <span className="opacity-30">•</span>
+          <span className="text-white font-bold normal-case tracking-normal">CPSC Monthly Enrollment</span>
+          <span className="opacity-30">•</span>
+          <span className="text-white font-bold normal-case tracking-normal">CAHPS Member Survey</span>
+          <span className="opacity-30">•</span>
+          <span className="text-white font-bold normal-case tracking-normal">CMS Complaints DB</span>
+        </div>
+      </div>
+
+      {/* problem / agitation */}
+      <section className="max-w-6xl mx-auto px-6 md:px-10 py-24">
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'var(--gold)'}}>The problem</div>
+          <h2 className="font-black text-white leading-tight mb-4" style={{fontSize:'clamp(1.8rem,4vw,2.75rem)'}}>
+            The best opportunities are hiding in plain sight
+          </h2>
+          <p className="text-lg" style={{color:'var(--muted)'}}>
+            Every October, CMS tells you exactly which plans are in trouble. The catch: it’s buried in raw data, and whoever reads it first wins the account.
+          </p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {painPoints.map((p,i)=>(
+            <div key={i} className="lp-glass rounded-2xl p-7">
+              <div className="text-3xl mb-4">{p.icon}</div>
+              <div className="font-bold text-white text-lg mb-2">{p.t}</div>
+              <div className="text-sm leading-relaxed" style={{color:'var(--muted)'}}>{p.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* how it works */}
+      <section className="max-w-6xl mx-auto px-6 md:px-10 py-24 border-t" style={{borderColor:'var(--line)'}}>
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'var(--gold)'}}>How it works</div>
+          <h2 className="font-black text-white leading-tight" style={{fontSize:'clamp(1.8rem,4vw,2.75rem)'}}>
+            From 900 plans to your first meeting — in three moves
+          </h2>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {steps.map((s,i)=>(
+            <div key={i} className="relative lp-glass rounded-2xl p-8">
+              <div className="font-black text-5xl mb-4" style={{color:'rgba(124,108,246,0.35)'}}>{s.n}</div>
+              <div className="font-bold text-white text-lg mb-2">{s.t}</div>
+              <div className="text-sm leading-relaxed" style={{color:'var(--muted)'}}>{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* features / value stack */}
+      <section className="max-w-6xl mx-auto px-6 md:px-10 py-24 border-t" style={{borderColor:'var(--line)'}}>
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{color:'var(--gold)'}}>What’s inside</div>
+          <h2 className="font-black text-white leading-tight" style={{fontSize:'clamp(1.8rem,4vw,2.75rem)'}}>
+            Everything you need to walk in ready
+          </h2>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {features.map((f,i)=>(
+            <div key={i} className="lp-glass rounded-2xl p-7 transition-transform hover:-translate-y-1">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl mb-4"
+                style={{background:'var(--accent-soft)',border:'1px solid rgba(124,108,246,0.3)'}}>{f.icon}</div>
+              <div className="font-bold text-white text-base mb-2">{f.t}</div>
+              <div className="text-sm leading-relaxed" style={{color:'var(--muted)'}}>{f.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* final CTA */}
+      <section className="px-6 md:px-10 py-24">
+        <div className="relative max-w-4xl mx-auto rounded-3xl overflow-hidden text-center px-8 py-20 lp-glass">
+          <div className="lp-orb" style={{width:280,height:280,background:'rgba(124,108,246,0.45)',bottom:-80,left:'20%'}}/>
+          <div className="lp-orb" style={{width:220,height:220,background:'rgba(245,184,61,0.3)',top:-60,right:'18%',animationDelay:'2s'}}/>
+          <div className="relative">
+            <div className="flex items-center justify-center gap-1 mb-6">
+              {[0,1,2,3,4].map(i=>(<Star key={i} size={22} cls="lp-star" />))}
+            </div>
+            <h2 className="font-black text-white leading-tight mb-5" style={{fontSize:'clamp(2rem,4.5vw,3.25rem)'}}>
+              Your next account is already on the board.
+            </h2>
+            <p className="text-lg max-w-xl mx-auto mb-10" style={{color:'var(--muted)'}}>
+              Open Star Explorer and see the plans losing stars this cycle — ranked, scored, and ready to work.
+            </p>
+            <CTA className="mx-auto">Launch Star Explorer</CTA>
+            <div className="mt-5 text-xs" style={{color:'var(--muted)'}}>Free to explore · No account required · Internal use</div>
+          </div>
+        </div>
+      </section>
+
+      {/* footer */}
+      <footer className="px-6 md:px-10 py-8 border-t flex flex-col md:flex-row items-center justify-between gap-3" style={{borderColor:'var(--line)'}}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'linear-gradient(135deg,var(--accent),var(--accent2))'}}><Star size={14} color="#fff"/></div>
+          <span className="text-sm font-bold text-white">Star Explorer</span>
+        </div>
+        <div className="text-xs" style={{color:'var(--muted)'}}>
+          Data: CMS 2026 Star Ratings (Oct 8 2025) · CPSC Enrollment (May 2025) · Sales Intelligence · Internal Use Only
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+/* ── Main App ────────────────────────────────────────────── */
+const PAGE_SIZE = 50;
+
+const App = () => {
+  const [allPlans, setAllPlans]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [selected, setSelected]     = useState(null);
+  const [page, setPage]             = useState(1);
+  const [sortField, setSortField]   = useState('opportunityScore');
+  const [sortDir, setSortDir]       = useState('desc');
+  const [filters, setFilters]       = useState({search:'',minOpp:null,stars:null,tier:null,change:null,signal:null,state:null,planType:null,snp:null,blueCross:false,enrollMin:null,enrollMax:null});
+  const [view, setView]             = useState('landing'); // 'landing' = marketing entry · 'drill' = drill-down comparison · 'browse' = filter/browse
+  const [anchor, setAnchor]         = useState(null);       // selected plan to drill into
+
+  useEffect(()=>{
+    fetch('./cms_plans_enriched.json?v='+Date.now(),{cache:'no-store'})
+      .then(r=>{if(!r.ok) throw new Error('HTTP '+r.status); return r.json();})
+      .then(data=>{setAllPlans(data); setLoading(false);})
+      .catch(e=>{setError(e.message); setLoading(false);});
+  },[]);
+
+  const allStates = useMemo(()=>[...new Set(allPlans.flatMap(p=>p.states))].sort(),[allPlans]);
+
+  const filtered = useMemo(()=>{
+    let r = allPlans.filter(p=>{
+      if(filters.search){
+        const q=filters.search.toLowerCase();
+        if(!p.orgName.toLowerCase().includes(q)&&!p.parentOrg.toLowerCase().includes(q)&&!p.id.toLowerCase().includes(q)) return false;
+      }
+      if(filters.minOpp!=null && p.opportunityScore<filters.minOpp) return false;
+      if(filters.stars){
+        if(filters.stars==='low'  && p.overall2026>2.5)  return false;
+        if(filters.stars==='high' && p.overall2026<4.0)  return false;
+        if(filters.stars==='3.0'  && p.overall2026!==3.0) return false;
+        if(filters.stars==='3.5'  && p.overall2026!==3.5) return false;
+      }
+      if(filters.tier){
+        const e=p.enrollment;
+        if(filters.tier==='enterprise' && e<1e6)          return false;
+        if(filters.tier==='midmarket'  && (e<200e3||e>=1e6)) return false;
+        if(filters.tier==='regional'   && e>=200e3)       return false;
+      }
+      if(filters.change){
+        const d=p.overall2025?p.overall2026-p.overall2025:null;
+        if(filters.change==='drop'     && !(d!=null&&d<0))  return false;
+        if(filters.change==='stable'   && !(d==null||d===0)) return false;
+        if(filters.change==='improved' && !(d!=null&&d>0))  return false;
+      }
+      if(filters.signal && !p.signals?.some(s=>s.type===filters.signal)) return false;
+      if(filters.state  && !p.states.includes(filters.state)) return false;
+      if(filters.planType) {
+        if(filters.planType==='hmo'  && !p.planTypes?.includes('hmo'))  return false;
+        if(filters.planType==='ppo'  && !p.planTypes?.includes('ppo'))  return false;
+        if(filters.planType==='pffs' && !p.planTypes?.includes('pffs')) return false;
+      }
+      if(filters.snp) {
+        if(filters.snp==='dsnp' && !p.hasDSNP) return false;
+        if(filters.snp==='csnp' && !p.hasCSNP) return false;
+        if(filters.snp==='isnp' && !p.hasISNP) return false;
+        if(filters.snp==='any'  && !p.hasSNP)  return false;
+        if(filters.snp==='none' && p.hasSNP)   return false;
+      }
+      if(filters.blueCross && !p.isBlueCross) return false;
+      if(filters.enrollMin!=null && p.enrollment < filters.enrollMin) return false;
+      if(filters.enrollMax!=null && p.enrollment >= filters.enrollMax) return false;
+      return true;
+    });
+    r.sort((a,b)=>{
+      let va, vb;
+      if(sortField==='opportunityScore'){va=a.opportunityScore;vb=b.opportunityScore;}
+      else if(sortField==='enrollment'){va=a.enrollment;vb=b.enrollment;}
+      else if(sortField==='overall2026'){va=a.overall2026;vb=b.overall2026;}
+      else if(sortField==='ccAvg'){va=a.ccAvg||0;vb=b.ccAvg||0;}
+      else if(sortField==='contractMax'){va=a.contractRange[1];vb=b.contractRange[1];}
+      else{va=a.orgName;vb=b.orgName;}
+      if(va<vb) return sortDir==='asc'?-1:1;
+      if(va>vb) return sortDir==='asc'?1:-1;
+      return 0;
+    });
+    return r;
+  },[allPlans,filters,sortField,sortDir]);
+
+  const paged = filtered.slice(0,(page)*PAGE_SIZE);
+  const hasMore = paged.length < filtered.length;
+
+  const toggleSort = f => {
+    if(sortField===f) setSortDir(d=>d==='asc'?'desc':'asc');
+    else{setSortField(f);setSortDir('desc');}
+    setPage(1);
+  };
+
+  const SortTh = ({field, label, align='left', cls=''}) => (
+    <th onClick={()=>toggleSort(field)}
+      className={`px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer hover:text-slate-300 select-none text-${align} ${cls}`}>
+      {label}{sortField===field?(sortDir==='desc'?' ↓':' ↑'):''}
+    </th>
+  );
+
+  const isFiltered = !!(filters.search||filters.minOpp!=null||filters.stars||filters.tier||filters.change||filters.signal||filters.state||filters.planType||filters.snp||filters.blueCross||filters.enrollMin!=null);
+
+  const netflixRows = useMemo(()=>[
+    {id:'critical',icon:'🎯',title:'Critical Priority — Act Now',
+      plans:allPlans.filter(p=>p.opportunityScore>=65).sort((a,b)=>b.opportunityScore-a.opportunityScore)},
+    {id:'drop',icon:'📉',title:'Star Drops — Lost QBP Bonus',
+      plans:allPlans.filter(p=>p.overall2025&&p.overall2026<p.overall2025).sort((a,b)=>b.enrollment-a.enrollment).slice(0,14)},
+    {id:'dsnp',icon:'💊',title:'D-SNP — Dual Eligible Plans',
+      plans:allPlans.filter(p=>p.hasDSNP).sort((a,b)=>b.opportunityScore-a.opportunityScore).slice(0,14)},
+    {id:'cc',icon:'📞',title:'Call Center Quality Gap',
+      plans:allPlans.filter(p=>p.signals?.some(s=>s.type==='cc_weakness')).sort((a,b)=>b.enrollment-a.enrollment).slice(0,14)},
+    {id:'lang',icon:'🌐',title:'Language Access Audit Gap',
+      plans:allPlans.filter(p=>p.signals?.some(s=>s.type==='language_gap')).sort((a,b)=>b.enrollment-a.enrollment).slice(0,14)},
+    {id:'bcbs',icon:'🔵',title:'Blue Cross / BCBS Plans',
+      plans:allPlans.filter(p=>p.isBlueCross).sort((a,b)=>b.opportunityScore-a.opportunityScore).slice(0,14)},
+    {id:'ent',icon:'🏢',title:'Enterprise Accounts (1M+ Members)',
+      plans:allPlans.filter(p=>p.enrollment>=1e6).sort((a,b)=>b.enrollment-a.enrollment)},
+    {id:'all',icon:'📋',title:'All Plans by Opportunity Score',
+      plans:allPlans.slice().sort((a,b)=>b.opportunityScore-a.opportunityScore).slice(0,14)},
+  ],[allPlans]);
+
+  if(view==='landing') return <Landing plans={allPlans} loading={loading} onEnter={()=>setView('drill')}/>;
+
+  if(loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={{background:'transparent'}}>
+      <div className="text-center">
+        <div style={{width:48,height:48,border:'4px solid #23243a',borderTop:'4px solid var(--accent2)',borderRadius:'50%',animation:'spin 0.8s linear infinite'}} className="mb-4 mx-auto"/>
+        <div className="text-white font-semibold text-lg">Loading CMS Data…</div>
+        <div className="text-slate-500 text-sm mt-2">Fetching Medicare Advantage plans from CMS 2026 Star Ratings</div>
+      </div>
+    </div>
+  );
+  if(error) return (
+    <div className="min-h-screen flex items-center justify-center" style={{background:'transparent'}}>
+      <div className="text-center max-w-md">
+        <div className="text-4xl mb-4">⚠</div>
+        <div className="text-red-400 font-semibold">Failed to load CMS data</div>
+        <div className="text-slate-500 text-sm mt-2">{error}</div>
+        <div className="text-slate-600 text-xs mt-3">Make sure cms_plans_enriched.json is in the same directory as index.html</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{background:'transparent',color:'var(--ink)'}}>
+      {/* Header */}
+      <header className="flex-shrink-0 sticky top-0 z-30 px-6 py-3"
+        style={{background:'linear-gradient(180deg,rgba(10,11,18,0.92),rgba(10,11,18,0.72))',backdropFilter:'blur(14px)',WebkitBackdropFilter:'blur(14px)',borderBottom:'1px solid var(--line)'}}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <button onClick={()=>setView('landing')} className="flex items-center gap-3 group" title="Back to home">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{background:'linear-gradient(135deg,var(--accent),var(--accent2))',boxShadow:'0 6px 18px -4px rgba(124,108,246,0.7)'}}>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 7.1-1.01L12 2z"/></svg>
+              </div>
+              <div className="text-left">
+                <div className="font-black text-white text-base leading-none tracking-tight">STAR<span style={{color:'var(--gold)'}}>·</span>EXPLORER</div>
+                <div className="text-[10px] uppercase tracking-widest mt-0.5 leading-none" style={{color:'#808080'}}>Medicare Advantage Intelligence</div>
+              </div>
+            </button>
+            <div className="w-px h-4" style={{background:'rgba(255,255,255,0.12)'}}/>
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500"/>
+              <span className="text-xs" style={{color:'#b3b3b3'}}>Live CMS Data</span>
+              <span className="text-xs" style={{color:'#606060'}}>· 2026 Star Ratings (Oct 8 2025) · Enrollment May 2025</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center rounded-lg p-0.5" style={{background:'#1a1a1a',border:'1px solid rgba(255,255,255,0.08)'}}>
+              {[['drill','Drill-Down'],['browse','Browse All']].map(([v,l])=>(
+                <button key={v} onClick={()=>setView(v)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-md transition-all"
+                  style={view===v?{background:'linear-gradient(135deg,var(--accent),var(--accent2))',color:'#fff'}:{color:'#808080'}}>{l}</button>
+              ))}
+            </div>
+            <span className="text-xs" style={{color:'#808080'}}>
+              <span className="text-white font-bold">{view==='browse'?filtered.length:allPlans.length}</span> {view==='browse'?`of ${allPlans.length} `:''}plans
+            </span>
+            {filtered.filter(p=>p.opportunityScore>=65).length>0&&(
+              <div className="flex items-center gap-1.5 rounded-lg px-3 py-1.5"
+                style={{background:'rgba(239,68,68,0.14)',border:'1px solid rgba(239,68,68,0.3)'}}>
+                <div className="w-1.5 h-1.5 rounded-full signal-pulse" style={{background:'#ef4444'}}/>
+                <span className="text-xs font-bold" style={{color:'#f87171'}}>
+                  {filtered.filter(p=>p.opportunityScore>=65).length} Critical
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {view==='drill' ? (
+        <div className="flex-1 overflow-auto min-h-0">
+          {anchor
+            ? <DrillView anchor={anchor} allPlans={allPlans} onBack={()=>setAnchor(null)} onOpen={setSelected}/>
+            : <PlanPicker plans={allPlans} onPick={setAnchor}/>}
+        </div>
+      ) : (
+      <>
+      <SummaryCards plans={filtered} total={allPlans.length}/>
+
+      <div className="flex flex-1 min-h-0">
+        <FilterSidebar filters={filters} setFilters={f=>{setFilters(f);setPage(1);}} allStates={allStates}/>
+
+        <div className="flex-1 overflow-auto px-6 py-6">
+          {isFiltered ? (
+            <>
+              <div className="flex items-center justify-between mb-5">
+                <div className="text-white font-semibold">
+                  {filtered.length} plan{filtered.length!==1?'s':''} match your filters
+                </div>
+                <div className="flex items-center gap-2 text-xs" style={{color:'#808080'}}>
+                  <span>Sort:</span>
+                  {[['opportunityScore','Opportunity'],['enrollment','Members'],['overall2026','Stars'],['ccAvg','CC Avg']].map(([f,l])=>(
+                    <button key={f} onClick={()=>toggleSort(f)}
+                      className="px-2.5 py-1 rounded-lg border transition-all"
+                      style={sortField===f?{background:'rgba(255,255,255,0.1)',borderColor:'rgba(255,255,255,0.2)',color:'#fff'}:{borderColor:'#333',color:'#808080'}}>
+                      {l}{sortField===f?(sortDir==='desc'?' ↓':' ↑'):''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {filtered.length===0 ? (
+                <div className="flex flex-col items-center justify-center py-24">
+                  <div className="text-5xl mb-4">🔍</div>
+                  <div className="text-white font-semibold text-lg">No plans match your filters</div>
+                  <div className="text-sm mt-2" style={{color:'#808080'}}>Try adjusting or clearing your filters</div>
+                </div>
+              ):(
+                <>
+                  <div className="grid gap-4" style={{gridTemplateColumns:'repeat(auto-fill,minmax(296px,1fr))'}}>
+                    {paged.map(plan=>(
+                      <PlanCard key={plan.id} plan={plan}
+                        isSelected={selected?.id===plan.id}
+                        onClick={()=>setSelected(selected?.id===plan.id?null:plan)}/>
+                    ))}
+                  </div>
+                  {hasMore&&(
+                    <div className="mt-6 text-center">
+                      <button onClick={()=>setPage(p=>p+1)}
+                        className="text-sm font-bold px-8 py-2.5 rounded-lg transition-all"
+                        style={{background:'var(--accent-soft)',border:'1px solid rgba(124,108,246,0.4)',color:'var(--accent2)'}}>
+                        Load more — showing {paged.length} of {filtered.length}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          ):(
+            netflixRows.map(row=>(
+              <NetflixRow key={row.id} icon={row.icon} title={row.title}
+                plans={row.plans} selected={selected}
+                onSelect={p=>setSelected(selected?.id===p.id?null:p)}/>
+            ))
+          )}
+        </div>
+      </div>
+      </>
+      )}
+
+      {selected&&<PlanDrawer plan={selected} onClose={()=>setSelected(null)}/>}
+
+      <footer className="flex-shrink-0 px-6 py-2 flex items-center justify-between"
+        style={{background:'rgba(6,7,12,0.7)',backdropFilter:'blur(10px)',borderTop:'1px solid var(--line)'}}>
+        <div className="text-xs" style={{color:'#606060'}}>Data: CMS 2026 Star Ratings (Oct 8 2025) · CMS CPSC Enrollment (May 2025) · All values official CMS published data</div>
+        <div className="text-xs" style={{color:'#404040'}}>Star Explorer · Sales Intelligence · Internal Use Only</div>
+      </footer>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

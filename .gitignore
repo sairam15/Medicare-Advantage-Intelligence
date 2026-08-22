@@ -1,0 +1,32 @@
+# ── Dependencies / build artifacts ──────────────────────
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+.open-next/
+**/.open-next/
+.wrangler/
+**/.wrangler/
+
+# ── Secrets / environment ────────────────────────────────
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.local
+
+# ── OS cruft ─────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ── Raw CMS source data (large / reproducible via scripts) ─
+cms_data/
+*.zip
+
+# ── Internal strategy material (not part of the app) ─────
+research/
+deliverables/
+BACKLOG.md
+ramesh-michael-connect-july2026-notes.md
+Essence-Healthcare-CX-Discussion-Document.pdf
+.claude/
