@@ -188,6 +188,15 @@ function ccComposite2027(p){
   const v = ids.map(id=>p.measures2027?.[id]).filter(x=>x!=null);
   return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
 }
+/* Latest-year anchor (2027, fall back to 2026 for the ~45 plans CMS didn't rate in 2027).
+   Mirrors the re-baselined scoring in enrich_cms.py so display, sort, and score agree. */
+const latestStar   = p => p.overall2027!=null ? p.overall2027 : p.overall2026;
+const latestStarYr = p => p.overall2027!=null ? 2027 : 2026;
+const priorStar    = p => p.overall2027!=null ? p.overall2026 : p.overall2025;
+const priorStarYr  = p => p.overall2027!=null ? 2026 : 2025;
+const latestCC     = p => p.ccAvg2027!=null ? p.ccAvg2027 : p.ccAvg;
+/* Newest-step overall delta (latest − prior), null when prior missing. */
+const starStep     = p => { const l=latestStar(p), pr=priorStar(p); return (l!=null&&pr!=null) ? +(l-pr).toFixed(1) : null; };
 /* Signed YoY color: up = green (improved), down = red (declined), flat = slate. */
 function deltaColor(d){ return d>0 ? '#22c55e' : d<0 ? '#ef4444' : '#64748b'; }
 /* Small YoY delta chip. `delta` is 2026 − 2025 in stars. Renders nothing when null (new/not-rated). */
@@ -202,10 +211,10 @@ const DeltaChip = ({delta, suffix='', size='xs'}) => {
    2026 Overall ★ → CAHPS avg → call-center composite → reach (enrollment). No invented weighting.
    Must have reported CAHPS data — a benchmark on the very measures we compare, never an empty "N/A" plan. */
 function pickNorthStar(pool, anchorId){
-  const cand = pool.filter(p=>p.id!==anchorId && p.overall2026!=null && cahpsAvg(p)!=null);
+  const cand = pool.filter(p=>p.id!==anchorId && latestStar(p)!=null && cahpsAvg(p)!=null);
   if(!cand.length) return null;
   cand.sort((a,b)=>
-    (b.overall2026-a.overall2026) ||
+    (latestStar(b)-latestStar(a)) ||
     ((cahpsAvg(b)||0)-(cahpsAvg(a)||0)) ||
     ((ccComposite(b)||0)-(ccComposite(a)||0)) ||
     (b.enrollment-a.enrollment)
@@ -352,7 +361,6 @@ const MeasureBar = ({measure, v25=null, v26=null, v27=null}) => {
 
 /* ── Drawer Tabs ─────────────────────────────────────────── */
 const OverviewTab = ({plan}) => {
-  const diff = plan.overall2025 ? plan.overall2026 - plan.overall2025 : null;
   const t = tierLabel(plan.enrollment);
   return (
     <div className="fade-in space-y-4">
@@ -433,7 +441,7 @@ const OverviewTab = ({plan}) => {
       </div>
 
       <div className="text-xs text-slate-600 border border-white/5 rounded-lg p-3 leading-relaxed">
-        <span className="text-slate-500 font-semibold">Data source:</span> CMS 2026 Star Ratings Data Tables (Oct 8 2025) &amp;
+        <span className="text-slate-500 font-semibold">Data source:</span> CMS 2025–2027 Star Ratings Data Tables (latest: Oct 8 2026) &amp;
         CMS CPSC Monthly Enrollment (May 2025). All star ratings are official CMS published values.
       </div>
     </div>
@@ -575,7 +583,8 @@ const PlanDrawer = ({plan, onClose}) => {
 
 /* ── Plan Card ───────────────────────────────────────────── */
 const PlanCard = ({plan, onClick, isSelected}) => {
-  const diff = plan.overall2025 ? plan.overall2026 - plan.overall2025 : null;
+  const diff = starStep(plan);               // newest step: latest − prior (2026→2027, or 2025→2026 fallback)
+  const diffVs = `vs '${String(priorStarYr(plan)).slice(2)}`;
   const t = tierLabel(plan.enrollment);
   const c = oppColor(plan.opportunityScore);
   const isCrit = plan.opportunityScore >= 65;
@@ -594,10 +603,10 @@ const PlanCard = ({plan, onClick, isSelected}) => {
             <div className="text-sm font-bold text-white leading-snug truncate">{plan.orgName}</div>
             <div className="text-xs leading-snug mt-0.5 truncate" style={{color:'#808080'}}>{plan.parentOrg||plan.id}</div>
             <div className="flex items-center gap-2 mt-1.5">
-              <StarDots value={plan.overall2026} size={10}/>
+              <StarDots value={latestStar(plan)} size={10}/>
               {diff!==null&&diff!==0&&(
                 <span className={`text-xs font-semibold ${diff<0?'text-red-500':'text-green-400'}`}>
-                  {diff<0?`▼${Math.abs(diff).toFixed(1)}`:`▲${diff.toFixed(1)}`} vs '25
+                  {diff<0?`▼${Math.abs(diff).toFixed(1)}`:`▲${diff.toFixed(1)}`} {diffVs}
                 </span>
               )}
             </div>
@@ -611,7 +620,7 @@ const PlanCard = ({plan, onClick, isSelected}) => {
           </div>
         </div>
         <div className="grid grid-cols-4 gap-1 mb-3 text-center">
-          {[['Members',fmt(plan.enrollment)],['States',plan.states.length],['CC ★',plan.ccAvg?plan.ccAvg.toFixed(1):'—'],['Contract',fmtD(plan.contractRange?.[1]||0)]].map(([lbl,val])=>(
+          {[['Members',fmt(plan.enrollment)],['States',plan.states.length],['CC ★',latestCC(plan)?latestCC(plan).toFixed(1):'—'],['Contract',fmtD(plan.contractRange?.[1]||0)]].map(([lbl,val])=>(
             <div key={lbl} className="rounded-lg py-1.5 px-1" style={{background:'#252525'}}>
               <div className="uppercase tracking-wide" style={{fontSize:9,color:'#606060'}}>{lbl}</div>
               <div className="text-xs font-bold text-white mt-0.5">{val}</div>
@@ -697,7 +706,7 @@ const PlanPicker = ({plans, onPick}) => {
             <div className="flex items-center gap-2 flex-shrink-0">
               {p.hasDSNP && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">D-SNP</span>}
               {p.isBlueCross && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">BCBS</span>}
-              <StarDots value={p.overall2026} size={12}/>
+              <StarDots value={latestStar(p)} size={12}/>
             </div>
           </button>
         ))}
@@ -725,7 +734,7 @@ const NorthStarCard = ({plan, anchor, label, icon, accent, onOpen}) => {
   const shared = plan.states.filter(s=>anchor.states.includes(s));
   const nsCahps = cahpsAvg(plan), anCahps = cahpsAvg(anchor);
   const nsCc = ccComposite(plan);
-  const starGap = (anchor.overall2026!=null && plan.overall2026!=null) ? (plan.overall2026-anchor.overall2026) : null;
+  const starGap = (latestStar(anchor)!=null && latestStar(plan)!=null) ? (latestStar(plan)-latestStar(anchor)) : null;
   const cahpsGap = (nsCahps!=null && anCahps!=null) ? (nsCahps-anCahps) : null;
   return (
     <button onClick={()=>onOpen(plan)}
@@ -764,7 +773,7 @@ const NorthStarCard = ({plan, anchor, label, icon, accent, onOpen}) => {
         <div>
           <div className="text-[10px] text-slate-500 uppercase tracking-wider">Overall</div>
           <div className="flex items-center gap-1.5">
-            <span className="font-bold" style={{color:starColor(plan.overall2026)}}>{plan.overall2026?.toFixed(1)}★</span>
+            <span className="font-bold" style={{color:starColor(latestStar(plan))}}>{latestStar(plan)?.toFixed(1)}★</span>
             {starGap>0 && <span className="text-green-400 text-xs">+{starGap.toFixed(1)} vs you</span>}
           </div>
         </div>
@@ -810,7 +819,7 @@ const DrillView = ({anchor, allPlans, onBack, onOpen}) => {
         return true;
       })
       .filter(p=>!footprint || footprintOf(p)===footprint)
-      .sort((a,b)=>(b.overall2026-a.overall2026)||(b.enrollment-a.enrollment));
+      .sort((a,b)=>(latestStar(b)-latestStar(a))||(b.enrollment-a.enrollment));
   },[anchor,allPlans,stateFilter,sizeFilter,footprint,sizeLo,sizeHi]);
   const anyFilter = !!(stateFilter||sizeFilter||footprint);
   const anchorCahps = cahpsAvg(anchor);
@@ -829,8 +838,8 @@ const DrillView = ({anchor, allPlans, onBack, onOpen}) => {
           <div className="text-slate-500 text-xs mt-0.5">{anchor.id} · {anchor.parentOrg||'—'} · {fmt(anchor.enrollment)} members · Serves {anchor.states.join(', ')}</div>
         </div>
         <div className="text-center flex-shrink-0">
-          <div className="text-xs text-slate-500 mb-1">2026 Overall</div>
-          <StarDots value={anchor.overall2026} size={15}/>
+          <div className="text-xs text-slate-500 mb-1">{latestStarYr(anchor)} Overall</div>
+          <StarDots value={latestStar(anchor)} size={15}/>
           <div className="text-xs text-slate-500 mt-1">CAHPS avg {anchorCahps!=null?anchorCahps.toFixed(2):'N/A'}</div>
         </div>
       </div>
@@ -843,7 +852,7 @@ const DrillView = ({anchor, allPlans, onBack, onOpen}) => {
             <span className="text-white font-bold text-base">North Star — what "best-in-class" looks like</span>
           </div>
           <div className="text-slate-500 text-xs mb-3">
-            The highest-rated plans by CMS 2026 Overall Star, then CAHPS avg, then call-center composite. This is the ceiling {anchor.orgName} can aim for — the perspective on what's achievable.
+            The highest-rated plans by CMS 2027 Overall Star, then CAHPS avg, then call-center composite. This is the ceiling {anchor.orgName} can aim for — the perspective on what's achievable.
           </div>
           {sameStar ? (
             <div>
@@ -949,7 +958,7 @@ const DrillView = ({anchor, allPlans, onBack, onOpen}) => {
                       </div>
                     </div>
                   </td>
-                  <td><span style={{color:starColor(p.overall2026)}} className="font-bold">{p.overall2026?.toFixed(1)}</span></td>
+                  <td><span style={{color:starColor(latestStar(p))}} className="font-bold">{latestStar(p)?.toFixed(1)}</span></td>
                   <td>{pc!=null?<span style={{color:starColor(pc)}} className="font-semibold">{pc.toFixed(2)}{!isAnchor&&anchorCahps!=null&&pc>anchorCahps&&<span className="text-green-400 ml-1">▲</span>}</span>:<span className="text-slate-600">–</span>}</td>
                   {ALL_IDS.map(id=>(
                     isAnchor
@@ -994,14 +1003,14 @@ const SummaryCards = ({plans, total}) => {
   const critical = plans.filter(p=>p.opportunityScore>=65).length;
   const totalLives = plans.reduce((a,b)=>a+b.enrollment,0);
   const tam = plans.reduce((a,b)=>a+b.contractRange[1],0);
-  const dropped = plans.filter(p=>p.overall2025&&p.overall2026<p.overall2025).length;
+  const dropped = plans.filter(p=>{const d=starStep(p);return d!=null&&d<0;}).length;
   return (
     <div className="grid grid-cols-5 gap-3 px-5 py-3" style={{background:'#111'}}>
       {[
-        {label:'Plans in Database',  val:total,             sub:'Rated MA contracts, CMS 2026',      color:'#3b82f6', icon:'📋'},
+        {label:'Plans in Database',  val:total,             sub:'Rated MA contracts, CMS 2027',      color:'#3b82f6', icon:'📋'},
         {label:'Filtered / Shown',   val:plans.length,      sub:'Matching current filters',          color:'#8b5cf6', icon:'🔍'},
         {label:'Critical Priority',  val:critical,          sub:'Opportunity score ≥ 65',            color:'#ef4444', icon:'🎯'},
-        {label:'Plans w/ Star Drop', val:dropped,           sub:'2025 → 2026 decline (filtered)',    color:'#f97316', icon:'↓★'},
+        {label:'Plans w/ Star Drop', val:dropped,           sub:'2026 → 2027 decline (filtered)',    color:'#f97316', icon:'↓★'},
         {label:'Total TAM (Filtered)',val:fmtD(tam),        sub:'Max annual contract value',         color:'#10b981', icon:'💰'},
       ].map((c,i)=>(
         <div key={i} className="rounded-xl p-4 border border-white/5" style={{background:'#1a1a1a'}}>
@@ -1053,7 +1062,7 @@ const FilterSidebar = ({filters, setFilters, allStates}) => {
       </div>
 
       {/* ── Star Rating ── */}
-      <SectionLabel>2026 Star Rating</SectionLabel>
+      <SectionLabel>2027 Star Rating</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
         {[[null,'All'],['low','≤ 2.5★'],['3.0','3.0★'],['3.5','3.5★'],['high','4.0+★']].map(([v,l])=>(
           <Chip key={l} label={l} active={filters.stars===v} color={v==='low'?'#ef4444':v==='high'?'#22c55e':'#eab308'}
@@ -1139,11 +1148,11 @@ const FilterSidebar = ({filters, setFilters, allStates}) => {
       <div className="mt-5 border border-white/5 rounded-xl p-3" style={{background:'#111'}}>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Data Sources</div>
         <div className="space-y-2 text-xs text-slate-500">
-          <div>⭐ <span className="text-slate-400">Star Ratings:</span> CMS 2026 &amp; 2025 Star Ratings Data Tables</div>
+          <div>⭐ <span className="text-slate-400">Star Ratings:</span> CMS 2027, 2026 &amp; 2025 Star Ratings Data Tables</div>
           <div>👥 <span className="text-slate-400">Enrollment:</span> CMS CPSC May 2025</div>
-          <div>📊 <span className="text-slate-400">Measures:</span> CMS 2026 Measure Stars</div>
+          <div>📊 <span className="text-slate-400">Measures:</span> CMS 2025–2027 Measure Stars</div>
           <div>📋 <span className="text-slate-400">Plan Types / SNP:</span> CMS CPSC Contract Info May 2025</div>
-          <div className="text-slate-600 pt-1">Published by CMS Oct 8, 2025. All values are official CMS data — no estimates.</div>
+          <div className="text-slate-600 pt-1">Latest ratings published by CMS Oct 8, 2026. All values are official CMS data — no estimates.</div>
         </div>
       </div>
     </div>
@@ -1193,7 +1202,7 @@ const Landing = ({plans, loading, onEnter}) => {
     {icon:'🔬',t:'Drill-Down Comparison',d:'Put any plan head-to-head against its market on all 10 call-center measures, with the North-Star benchmark auto-selected.'},
     {icon:'🎬',t:'Discovery Rows',d:'A curated, browse-first surface — "Star Drops", "Language Gaps", "Enterprise Accounts" — that turns a database into a shortlist.'},
     {icon:'💰',t:'Contract Value Sizing',d:'Every plan carries an estimated annual contract range from enrollment × BPO/CX benchmarks, so you triage by revenue, not vibes.'},
-    {icon:'🛡️',t:'100% Official CMS Data',d:'Nothing invented. Every star, complaint, and enrollment figure traces to CMS 2026 Star Ratings and CPSC enrollment files.'},
+    {icon:'🛡️',t:'100% Official CMS Data',d:'Nothing invented. Every star, complaint, and enrollment figure traces to CMS 2027 Star Ratings and CPSC enrollment files.'},
   ];
 
   return (
@@ -1236,7 +1245,7 @@ const Landing = ({plans, loading, onEnter}) => {
           </div>
           <div className="lp-rise lp-d4 flex items-center justify-center gap-2 text-xs" style={{color:'var(--muted)'}}>
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"/>
-            No login. No setup. 100% official CMS 2026 Star Ratings data.
+            No login. No setup. 100% official CMS 2027 Star Ratings data.
           </div>
 
           {/* live stat band */}
@@ -1260,7 +1269,7 @@ const Landing = ({plans, loading, onEnter}) => {
       <div className="border-y" style={{borderColor:'var(--line)',background:'rgba(255,255,255,0.015)'}}>
         <div className="max-w-6xl mx-auto px-6 md:px-10 py-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-xs uppercase tracking-widest" style={{color:'var(--muted)'}}>
           <span>Sourced from</span>
-          <span className="text-white font-bold normal-case tracking-normal">CMS 2026 Star Ratings</span>
+          <span className="text-white font-bold normal-case tracking-normal">CMS 2027 Star Ratings</span>
           <span className="opacity-30">•</span>
           <span className="text-white font-bold normal-case tracking-normal">CPSC Monthly Enrollment</span>
           <span className="opacity-30">•</span>
@@ -1359,7 +1368,7 @@ const Landing = ({plans, loading, onEnter}) => {
           <span className="text-sm font-bold text-white">Star Explorer</span>
         </div>
         <div className="text-xs" style={{color:'var(--muted)'}}>
-          Data: CMS 2026 Star Ratings (Oct 8 2025) · CPSC Enrollment (May 2025) · Sales Intelligence · Internal Use Only
+          Data: CMS 2027 Star Ratings (Oct 8 2026) · CPSC Enrollment (May 2025) · Sales Intelligence · Internal Use Only
         </div>
       </footer>
     </div>
@@ -1549,10 +1558,11 @@ const App = () => {
       }
       if(filters.minOpp!=null && p.opportunityScore<filters.minOpp) return false;
       if(filters.stars){
-        if(filters.stars==='low'  && p.overall2026>2.5)  return false;
-        if(filters.stars==='high' && p.overall2026<4.0)  return false;
-        if(filters.stars==='3.0'  && p.overall2026!==3.0) return false;
-        if(filters.stars==='3.5'  && p.overall2026!==3.5) return false;
+        const ls=latestStar(p);
+        if(filters.stars==='low'  && ls>2.5)  return false;
+        if(filters.stars==='high' && ls<4.0)  return false;
+        if(filters.stars==='3.0'  && ls!==3.0) return false;
+        if(filters.stars==='3.5'  && ls!==3.5) return false;
       }
       if(filters.tier){
         const e=p.enrollment;
@@ -1561,7 +1571,7 @@ const App = () => {
         if(filters.tier==='regional'   && e>=200e3)       return false;
       }
       if(filters.change){
-        const d=p.overall2025?p.overall2026-p.overall2025:null;
+        const d=starStep(p);
         if(filters.change==='drop'     && !(d!=null&&d<0))  return false;
         if(filters.change==='stable'   && !(d==null||d===0)) return false;
         if(filters.change==='improved' && !(d!=null&&d>0))  return false;
@@ -1589,8 +1599,8 @@ const App = () => {
       let va, vb;
       if(sortField==='opportunityScore'){va=a.opportunityScore;vb=b.opportunityScore;}
       else if(sortField==='enrollment'){va=a.enrollment;vb=b.enrollment;}
-      else if(sortField==='overall2026'){va=a.overall2026;vb=b.overall2026;}
-      else if(sortField==='ccAvg'){va=a.ccAvg||0;vb=b.ccAvg||0;}
+      else if(sortField==='overall2026'){va=latestStar(a)||0;vb=latestStar(b)||0;}
+      else if(sortField==='ccAvg'){va=latestCC(a)||0;vb=latestCC(b)||0;}
       else if(sortField==='contractMax'){va=a.contractRange[1];vb=b.contractRange[1];}
       else{va=a.orgName;vb=b.orgName;}
       if(va<vb) return sortDir==='asc'?-1:1;
@@ -1622,7 +1632,7 @@ const App = () => {
     {id:'critical',icon:'🎯',title:'Critical Priority — Act Now',
       plans:allPlans.filter(p=>p.opportunityScore>=65).sort((a,b)=>b.opportunityScore-a.opportunityScore)},
     {id:'drop',icon:'📉',title:'Star Drops — Lost QBP Bonus',
-      plans:allPlans.filter(p=>p.overall2025&&p.overall2026<p.overall2025).sort((a,b)=>b.enrollment-a.enrollment).slice(0,14)},
+      plans:allPlans.filter(p=>{const d=starStep(p);return d!=null&&d<0;}).sort((a,b)=>b.enrollment-a.enrollment).slice(0,14)},
     {id:'dsnp',icon:'💊',title:'D-SNP — Dual Eligible Plans',
       plans:allPlans.filter(p=>p.hasDSNP).sort((a,b)=>b.opportunityScore-a.opportunityScore).slice(0,14)},
     {id:'cc',icon:'📞',title:'Call Center Quality Gap',
@@ -1644,7 +1654,7 @@ const App = () => {
       <div className="text-center">
         <div style={{width:48,height:48,border:'4px solid #23243a',borderTop:'4px solid var(--accent2)',borderRadius:'50%',animation:'spin 0.8s linear infinite'}} className="mb-4 mx-auto"/>
         <div className="text-white font-semibold text-lg">Loading CMS Data…</div>
-        <div className="text-slate-500 text-sm mt-2">Fetching Medicare Advantage plans from CMS 2026 Star Ratings</div>
+        <div className="text-slate-500 text-sm mt-2">Fetching Medicare Advantage plans from CMS 2027 Star Ratings</div>
       </div>
     </div>
   );
@@ -1680,7 +1690,7 @@ const App = () => {
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500"/>
               <span className="text-xs" style={{color:'#b3b3b3'}}>Live CMS Data</span>
-              <span className="text-xs" style={{color:'#606060'}}>· 2026 Star Ratings (Oct 8 2025) · Enrollment May 2025</span>
+              <span className="text-xs" style={{color:'#606060'}}>· 2027 Star Ratings (Oct 8 2026) · Enrollment May 2025</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1785,7 +1795,7 @@ const App = () => {
 
       <footer className="flex-shrink-0 px-6 py-2 flex items-center justify-between"
         style={{background:'rgba(6,7,12,0.7)',backdropFilter:'blur(10px)',borderTop:'1px solid var(--line)'}}>
-        <div className="text-xs" style={{color:'#606060'}}>Data: CMS 2026 Star Ratings (Oct 8 2025) · CMS CPSC Enrollment (May 2025) · All values official CMS published data</div>
+        <div className="text-xs" style={{color:'#606060'}}>Data: CMS 2027 Star Ratings (Oct 8 2026) · CMS CPSC Enrollment (May 2025) · All values official CMS published data</div>
         <div className="text-xs" style={{color:'#404040'}}>Star Explorer · Sales Intelligence · Internal Use Only</div>
       </footer>
     </div>
