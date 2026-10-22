@@ -174,6 +174,30 @@ function ccComposite(p){
   const v = ids.map(id=>p.measures?.[id]).filter(x=>x!=null);
   return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
 }
+/* Prior-year (2025) call-center composite over the same 8 measures, re-keyed to 2026 codes.
+   CMS renumbered measure codes between 2025 and 2026; the pipeline already name-matched them,
+   so measures2025[C24] is the SAME underlying measure as measures[C24]. */
+function ccComposite2025(p){
+  const ids = ['C22','C23','C24','C28','C29','C31','C33','D01'];
+  const v = ids.map(id=>p.measures2025?.[id]).filter(x=>x!=null);
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+}
+/* Newest-year (2027) call-center composite over the same 8 measures (name-matched). */
+function ccComposite2027(p){
+  const ids = ['C22','C23','C24','C28','C29','C31','C33','D01'];
+  const v = ids.map(id=>p.measures2027?.[id]).filter(x=>x!=null);
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+}
+/* Signed YoY color: up = green (improved), down = red (declined), flat = slate. */
+function deltaColor(d){ return d>0 ? '#22c55e' : d<0 ? '#ef4444' : '#64748b'; }
+/* Small YoY delta chip. `delta` is 2026 − 2025 in stars. Renders nothing when null (new/not-rated). */
+const DeltaChip = ({delta, suffix='', size='xs'}) => {
+  if(delta==null) return <span className="text-slate-600" style={{fontSize:9}}>new</span>;
+  const c=deltaColor(delta);
+  const arrow = delta>0?'▲':delta<0?'▼':'→';
+  const txt = delta===0 ? 'flat' : `${delta>0?'+':''}${delta.toFixed(1)}`;
+  return <span className={`text-${size} font-semibold inline-flex items-center gap-0.5`} style={{color:c}}>{arrow} {txt}{suffix}</span>;
+};
 /* North Star = the aspirational ceiling in a pool. Ranked purely on CMS published numbers:
    2026 Overall ★ → CAHPS avg → call-center composite → reach (enrollment). No invented weighting.
    Must have reported CAHPS data — a benchmark on the very measures we compare, never an empty "N/A" plan. */
@@ -284,30 +308,44 @@ const SignalBadge = ({type, small=false}) => {
   );
 };
 
-const MeasureBar = ({measure, value}) => {
-  if(value==null) return (
+/* YearCell — one year's star value, color-coded. Dimmed label, bold value. */
+const YearCell = ({yr, val}) => val==null
+  ? <span className="tabular-nums" style={{fontSize:10,color:'#4b4b5e'}}>{yr} —</span>
+  : <span className="tabular-nums" style={{fontSize:10,color:'#707590'}}>{yr} <span style={{color:starColor(val),fontWeight:700}}>{val.toFixed(1)}</span></span>;
+
+const MeasureBar = ({measure, v25=null, v26=null, v27=null}) => {
+  // Bar reflects the newest available year; newest step delta = 2027 − 2026.
+  const latest = v27!=null ? v27 : v26;
+  const stepDelta = (v27!=null && v26!=null) ? +(v27-v26).toFixed(1) : null;
+  if(latest==null) return (
     <div className="flex items-center gap-3 py-2 border-b border-white/5">
       <span className="text-xs font-mono text-slate-600">{measure.id}</span>
       <span className="text-xs text-slate-500 truncate flex-1">{measure.label}</span>
       <span className="text-xs text-slate-600 ml-2">Not rated</span>
     </div>
   );
-  const pct=(value/5)*100, c=starColor(value);
+  const pct=(latest/5)*100, c=starColor(latest);
+  const traj = [['2025',v25],['2026',v26],['2027',v27]].filter(x=>x[1]!=null).map(x=>`${x[0]}: ${x[1].toFixed(1)}★`).join(' → ');
   return (
     <div className="tooltip">
       <div className="flex items-center gap-2 py-2.5 border-b border-white/5">
         <span className="text-xs font-mono text-slate-500 flex-shrink-0 w-7">{measure.id}</span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1 gap-2">
             <span className="text-xs text-slate-300 truncate">{measure.label}</span>
-            <span className="text-xs font-bold ml-2 flex-shrink-0" style={{color:c}}>{value.toFixed(1)}</span>
+            <span className="flex items-center gap-2 flex-shrink-0">
+              <YearCell yr="'25" val={v25}/>
+              <YearCell yr="'26" val={v26}/>
+              <YearCell yr="'27" val={v27}/>
+              <DeltaChip delta={stepDelta}/>
+            </span>
           </div>
           <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div className="measure-bar-fill h-full rounded-full" style={{width:pct+'%',background:`linear-gradient(90deg,${c}99,${c})`}}/>
           </div>
         </div>
       </div>
-      <div className="tooltip-box">{measure.desc}</div>
+      <div className="tooltip-box">{measure.desc}{traj?` · ${traj}`:''}</div>
     </div>
   );
 };
@@ -325,22 +363,32 @@ const OverviewTab = ({plan}) => {
           <div className="text-xs mt-1 font-semibold" style={{color:t.color}}>{t.label}</div>
         </div>
         <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
-          <div className="text-slate-500 text-xs mb-1">2026 Overall Stars</div>
-          <div className="mt-1"><StarDots value={plan.overall2026} size={15}/></div>
-          {diff !== null && (
-            <div className={`text-xs mt-1.5 font-medium ${diff<0?'text-red-400':diff>0?'text-green-400':'text-slate-500'}`}>
-              {diff<0?`▼ ${Math.abs(diff).toFixed(1)} vs 2025 (${plan.overall2025}★)`:
-               diff>0?`▲ +${diff.toFixed(1)} vs 2025`:
-               `→ Stable vs 2025 (${plan.overall2025}★)`}
-            </div>
-          )}
+          <div className="text-slate-500 text-xs mb-1">Overall Stars {plan.overall2027!=null?'(2027)':'(2026)'}</div>
+          <div className="mt-1"><StarDots value={plan.overall2027!=null?plan.overall2027:plan.overall2026} size={15}/></div>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <YearCell yr="'25" val={plan.overall2025??null}/>
+            <span style={{color:'#4b4b5e'}}>→</span>
+            <YearCell yr="'26" val={plan.overall2026??null}/>
+            <span style={{color:'#4b4b5e'}}>→</span>
+            <YearCell yr="'27" val={plan.overall2027??null}/>
+            {plan.overall2027!=null && plan.overall2026!=null &&
+              <span className="ml-1"><DeltaChip delta={+(plan.overall2027-plan.overall2026).toFixed(1)}/></span>}
+          </div>
         </div>
         <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
-          <div className="text-slate-500 text-xs mb-1">CC Measure Avg</div>
-          {plan.ccAvg
-            ? <div className="mt-1"><StarDots value={plan.ccAvg} size={13}/></div>
+          <div className="text-slate-500 text-xs mb-1">CC Measure Avg {plan.ccAvg2027!=null?'(2027)':'(2026)'}</div>
+          {(plan.ccAvg2027??plan.ccAvg)
+            ? <div className="mt-1"><StarDots value={plan.ccAvg2027??plan.ccAvg} size={13}/></div>
             : <div className="text-sm text-slate-600 mt-2">Insufficient data</div>}
-          <div className="text-slate-600 text-xs mt-1">Call center measures only</div>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <YearCell yr="'25" val={plan.ccAvg2025??null}/>
+            <span style={{color:'#4b4b5e'}}>→</span>
+            <YearCell yr="'26" val={plan.ccAvg??null}/>
+            <span style={{color:'#4b4b5e'}}>→</span>
+            <YearCell yr="'27" val={plan.ccAvg2027??null}/>
+            {plan.ccAvg2027!=null && plan.ccAvg!=null &&
+              <span className="ml-1"><DeltaChip delta={+(plan.ccAvg2027-plan.ccAvg).toFixed(2)}/></span>}
+          </div>
         </div>
         <div className="bg-slate-800/60 rounded-xl p-4 border border-white/5">
           <div className="text-slate-500 text-xs mb-1">Contract Type</div>
@@ -398,15 +446,15 @@ const MeasuresTab = ({plan}) => {
   return (
     <div className="fade-in">
       <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 mb-4 text-xs text-blue-300 leading-relaxed">
-        All scores are official CMS 2026 Star Rating measure values. Hover any measure for details on the call center connection.
+        Official CMS measure stars across <span className="font-semibold">three cycles ('25 → '26 → '27)</span>, with the newest change (▲/▼ = 2026 → 2027). CMS renumbered measure codes each year; every row is name-matched to the <span className="font-semibold">same underlying measure</span>. Hover for the full trajectory.
       </div>
       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Part C — Health Plan Measures</div>
       <div className="bg-slate-800/50 rounded-xl px-4 border border-white/5 mb-4">
-        {partC.map(m=><MeasureBar key={m.id} measure={m} value={plan.measures?.[m.id]??null}/>)}
+        {partC.map(m=><MeasureBar key={m.id} measure={m} v25={plan.measures2025?.[m.id]??null} v26={plan.measures?.[m.id]??null} v27={plan.measures2027?.[m.id]??null}/>)}
       </div>
       <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Part D — Drug Plan Measures</div>
       <div className="bg-slate-800/50 rounded-xl px-4 border border-white/5 mb-4">
-        {partD.map(m=><MeasureBar key={m.id} measure={m} value={plan.measures?.[m.id]??null}/>)}
+        {partD.map(m=><MeasureBar key={m.id} measure={m} v25={plan.measures2025?.[m.id]??null} v26={plan.measures?.[m.id]??null} v27={plan.measures2027?.[m.id]??null}/>)}
       </div>
       <div className="bg-slate-800/40 rounded-xl p-3 border border-white/5">
         <div className="text-xs text-slate-500 font-semibold mb-2">Rating Scale</div>
@@ -1310,6 +1358,157 @@ const Landing = ({plans, loading, onEnter}) => {
   );
 };
 
+/* ── Trends / Movers View (measure-level trend 2025 → 2026 → 2027) ─────────── */
+/* Mini sparkline for a 3-point star trajectory (values 0–5). */
+const Spark = ({pts, w=46, h=16}) => {
+  const vals = pts.filter(v=>v!=null);
+  if(vals.length<2) return <span style={{display:'inline-block',width:w}}/>;
+  const xs = pts.map((v,i)=>pts.length>1?(i/(pts.length-1))*(w-2)+1:w/2);
+  const y = v => h-2 - (v/5)*(h-4);
+  const seg = [];
+  let prev=null;
+  pts.forEach((v,i)=>{ if(v!=null){ if(prev!=null) seg.push(`${xs[prev]},${y(pts[prev])} ${xs[i]},${y(v)}`); prev=i; } });
+  const last = [...pts].reverse().find(v=>v!=null);
+  const first = pts.find(v=>v!=null);
+  const col = deltaColor(last-first);
+  return (
+    <svg width={w} height={h} style={{flexShrink:0}}>
+      {seg.map((s,i)=><polyline key={i} points={s} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round"/>)}
+      {pts.map((v,i)=>v!=null?<circle key={i} cx={xs[i]} cy={y(v)} r="1.6" fill={col}/>:null)}
+    </svg>
+  );
+};
+
+const MoverRow = ({plan, isSelected, onOpen}) => {
+  const d = +((plan.ccAvg2027??0) - (plan.ccAvg??0)).toFixed(2); // newest step: 2026 → 2027
+  return (
+    <button onClick={()=>onOpen(isSelected?null:plan)}
+      className="w-full text-left rounded-lg px-3 py-2.5 border transition-all flex items-center gap-3"
+      style={isSelected?{background:'var(--accent-soft)',borderColor:'rgba(124,108,246,0.5)'}:{background:'#15151f',borderColor:'rgba(255,255,255,0.06)'}}>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-white truncate">{plan.orgName}</div>
+        <div className="text-xs truncate" style={{color:'#808080'}}>{plan.id} · {fmt(plan.enrollment)} members · {plan.overall2027??plan.overall2026}★ overall</div>
+      </div>
+      <div className="flex items-center gap-2.5 flex-shrink-0">
+        <span className="text-xs tabular-nums hidden sm:inline" style={{color:'#707590'}}>
+          {plan.ccAvg2025!=null?plan.ccAvg2025.toFixed(1):'—'}→{plan.ccAvg!=null?plan.ccAvg.toFixed(1):'—'}→{plan.ccAvg2027!=null?plan.ccAvg2027.toFixed(1):'—'}
+        </span>
+        <Spark pts={[plan.ccAvg2025??null, plan.ccAvg??null, plan.ccAvg2027??null]}/>
+        <span className="text-sm font-bold tabular-nums" style={{color:deltaColor(d),minWidth:52,textAlign:'right'}}>{d>0?'▲ +':d<0?'▼ ':'→ '}{d===0?'0.0':Math.abs(d).toFixed(2)}</span>
+      </div>
+    </button>
+  );
+};
+
+const MoversView = ({plans, selected, onOpen}) => {
+  // Newest-step movers: plans with both 2026 and 2027 CC composite. Rank by 2026 → 2027 change.
+  const movers = useMemo(()=>plans
+    .filter(p=>p.ccAvg!=null && p.ccAvg2027!=null)
+    .map(p=>({...p, step:+(p.ccAvg2027-p.ccAvg).toFixed(2)})), [plans]);
+
+  const decliners = useMemo(()=>[...movers].sort((a,b)=>a.step-b.step).slice(0,12), [movers]);
+  const improvers = useMemo(()=>[...movers].sort((a,b)=>b.step-a.step).slice(0,12), [movers]);
+
+  const summary = useMemo(()=>({
+    n: movers.length,
+    imp: movers.filter(m=>m.step>0).length,
+    dec: movers.filter(m=>m.step<0).length,
+    flat: movers.filter(m=>m.step===0).length,
+  }), [movers]);
+
+  // Per-measure market movement across all three cycles. Mean per year uses plans reporting
+  // that measure that year; newest net (26→27) uses plans reporting both years.
+  const measureStats = useMemo(()=>CC_MEASURES.map(m=>{
+    const mean = key => { let s=0,n=0; plans.forEach(p=>{const v=p[key]?.[m.id]; if(v!=null){s+=v;n++;}}); return n?{avg:s/n,n}:{avg:null,n:0}; };
+    const a25=mean('measures2025'), a26=mean('measures'), a27=mean('measures2027');
+    let s=0,nn=0,imp=0,dec=0;
+    plans.forEach(p=>{const b=p.measures?.[m.id], c=p.measures2027?.[m.id]; if(b!=null&&c!=null){s+=(c-b);nn++; const dd=c-b; if(dd>0.0001)imp++; else if(dd<-0.0001)dec++;}});
+    return {id:m.id,label:m.label,avg25:a25.avg,avg26:a26.avg,avg27:a27.avg,net:nn?s/nn:null,imp,dec,n:nn};
+  }).filter(x=>x.n>0).sort((a,b)=>a.net-b.net), [plans]);
+
+  return (
+    <div className="px-6 py-6 max-w-6xl mx-auto">
+      <div className="mb-5">
+        <h2 className="text-xl font-bold text-white">Call-Center Measure Trends — 2025 → 2026 → 2027</h2>
+        <p className="text-sm mt-1" style={{color:'#9095b5'}}>
+          Three-cycle movement across the 10 call-center-linked CMS Star measures. Rankings and the summary below reflect the <span className="font-semibold">newest change (2026 → 2027)</span> for {summary.n} plans with data in both years.
+          CMS renumbered measure codes each year — every comparison is name-matched to the <span className="font-semibold">same underlying measure</span>. All values are official CMS published stars.
+        </p>
+      </div>
+
+      {/* Market summary band (newest step) */}
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {[
+          {label:'Plans Compared', val:summary.n, color:'#8b5cf6', sub:'2026 & 2027 CC data'},
+          {label:'CC Composite ▲ Improved', val:summary.imp, color:'#22c55e', sub:'Higher vs 2026'},
+          {label:'CC Composite ▼ Declined', val:summary.dec, color:'#ef4444', sub:'Lower vs 2026'},
+          {label:'Flat', val:summary.flat, color:'#64748b', sub:'No net change'},
+        ].map((c,i)=>(
+          <div key={i} className="rounded-xl p-4 border" style={{background:'#15151f',borderColor:'rgba(255,255,255,0.06)'}}>
+            <div className="text-xs mb-1" style={{color:'#808080'}}>{c.label}</div>
+            <div className="text-2xl font-bold" style={{color:c.color}}>{c.val}</div>
+            <div className="text-xs mt-1" style={{color:'#606060'}}>{c.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-measure market movement (3 cycles) */}
+      <div className="rounded-xl border mb-6 overflow-hidden" style={{borderColor:'rgba(255,255,255,0.06)'}}>
+        <div className="px-4 py-3 border-b" style={{background:'#15151f',borderColor:'rgba(255,255,255,0.06)'}}>
+          <div className="text-sm font-semibold text-white">Market-Wide Movement by Measure</div>
+          <div className="text-xs mt-0.5" style={{color:'#808080'}}>Mean star per cycle across reporting plans, sorted by steepest newest decline. Net Δ = 2027 mean − 2026 mean.</div>
+        </div>
+        <div style={{background:'#111119'}}>
+          {measureStats.map(m=>{
+            const w = Math.min(100, Math.abs(m.net)/1.0*100); // scale: 1.0★ net = full bar
+            return (
+              <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 border-b" style={{borderColor:'rgba(255,255,255,0.05)'}}>
+                <span className="text-xs font-mono flex-shrink-0 w-8" style={{color:'#808080'}}>{m.id}</span>
+                <span className="text-xs text-slate-300 flex-1 min-w-0 truncate">{m.label}</span>
+                <span className="text-xs tabular-nums flex-shrink-0 hidden md:inline" style={{color:'#9095b5',width:116,textAlign:'right'}}>
+                  {m.avg25!=null?m.avg25.toFixed(2):'—'} → {m.avg26!=null?m.avg26.toFixed(2):'—'} → {m.avg27!=null?m.avg27.toFixed(2):'—'}
+                </span>
+                <Spark pts={[m.avg25,m.avg26,m.avg27]}/>
+                <div className="flex-shrink-0 flex items-center justify-center" style={{width:72}}>
+                  <div className="h-1.5 rounded-full" style={{width:w+'%',minWidth:3,background:deltaColor(m.net)}}/>
+                </div>
+                <span className="text-sm font-bold tabular-nums flex-shrink-0" style={{color:deltaColor(m.net),width:56,textAlign:'right'}}>{m.net>0?'+':''}{m.net.toFixed(2)}</span>
+                <span className="text-xs tabular-nums flex-shrink-0 hidden lg:inline" style={{color:'#606060',width:84,textAlign:'right'}}>▲{m.imp} ▼{m.dec}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Biggest movers (newest CC composite step) */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-bold" style={{color:'#ef4444'}}>▼ Steepest CC Declines</span>
+            <span className="text-xs" style={{color:'#606060'}}>biggest drops, 2026 → 2027</span>
+          </div>
+          <div className="space-y-1.5">
+            {decliners.map(p=><MoverRow key={p.id} plan={p} isSelected={selected?.id===p.id} onOpen={onOpen}/>)}
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-bold" style={{color:'#22c55e'}}>▲ Biggest CC Improvements</span>
+            <span className="text-xs" style={{color:'#606060'}}>largest gains, 2026 → 2027</span>
+          </div>
+          <div className="space-y-1.5">
+            {improvers.map(p=><MoverRow key={p.id} plan={p} isSelected={selected?.id===p.id} onOpen={onOpen}/>)}
+          </div>
+        </div>
+      </div>
+
+      <div className="text-xs mt-6" style={{color:'#505050'}}>
+        CC composite = mean of C22, C23, C24, C28, C29, C31, C33, D01 (canonical 2026 codes; name-matched across years). Sources: CMS 2025 (Dec 2 2024), 2026 (Oct 8 2025) &amp; 2027 (Oct 8 2026) Star Ratings — Measure Stars tables.
+      </div>
+    </div>
+  );
+};
+
 /* ── Main App ────────────────────────────────────────────── */
 const PAGE_SIZE = 50;
 
@@ -1478,7 +1677,7 @@ const App = () => {
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center rounded-lg p-0.5" style={{background:'#1a1a1a',border:'1px solid rgba(255,255,255,0.08)'}}>
-              {[['drill','Drill-Down'],['browse','Browse All']].map(([v,l])=>(
+              {[['drill','Drill-Down'],['browse','Browse All'],['movers','Trends ’25→’27']].map(([v,l])=>(
                 <button key={v} onClick={()=>setView(v)}
                   className="text-xs font-semibold px-3 py-1.5 rounded-md transition-all"
                   style={view===v?{background:'linear-gradient(135deg,var(--accent),var(--accent2))',color:'#fff'}:{color:'#808080'}}>{l}</button>
@@ -1505,6 +1704,10 @@ const App = () => {
           {anchor
             ? <DrillView anchor={anchor} allPlans={allPlans} onBack={()=>setAnchor(null)} onOpen={setSelected}/>
             : <PlanPicker plans={allPlans} onPick={setAnchor}/>}
+        </div>
+      ) : view==='movers' ? (
+        <div className="flex-1 overflow-auto min-h-0">
+          <MoversView plans={allPlans} selected={selected} onOpen={setSelected}/>
         </div>
       ) : (
       <>

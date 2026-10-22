@@ -43,6 +43,11 @@ summary_2025 = read_summary(
 )
 print(f"  {len(summary_2025)} contracts")
 
+print("Reading 2027 summary ratings (newest cycle, released Oct 8 2026)...")
+_sr27 = os.path.join(DATA, "2027 Star Ratings Data Table - Summary Ratings (Oct 8 2026).csv")
+summary_2027 = read_summary(_sr27, "2027 Overall") if os.path.exists(_sr27) else {}
+print(f"  {len(summary_2027)} contracts")
+
 # Call center measure column indices (0-based, from row 3 of measure stars CSV)
 CC_COLS = {
     'C22': 26,  # Getting Needed Care
@@ -75,6 +80,94 @@ for row in csv.reader(lines[3:]):
                 scores[code] = None
     measure_stars[cid] = scores
 print(f"  {len(measure_stars)} contracts with measure data")
+
+# ── Prior-year (2025) measure stars for YoY comparison ───────────────────────
+# IMPORTANT: CMS renumbered measure CODES between 2025 and 2026, so a code like
+# "C24" means a DIFFERENT measure each year. We therefore map the 2025 columns by
+# the measure's NAME and re-key them to the 2026 code, so each series compares the
+# SAME underlying measure across years. Crosswalk (2026 code -> 2025 code @ col):
+#   C22 Getting Needed Care            = 2025 C19 @ 23
+#   C23 Getting Appts & Care Quickly   = 2025 C20 @ 24
+#   C24 Customer Service               = 2025 C21 @ 25
+#   C28 Complaints about Health Plan   = 2025 C25 @ 29
+#   C29 Members Leaving the Plan       = 2025 C26 @ 30
+#   C31 Timely Decisions on Appeals    = 2025 C28 @ 32
+#   C33 Call Center Language/TTY (C)   = 2025 C30 @ 34
+#   D01 Call Center Language/TTY (D)   = 2025 D01 @ 35
+#   D02 Complaints about Drug Plan     = 2025 D02 @ 36
+#   D03 Members Leaving (Drug Plan)    = 2025 D03 @ 37
+CC_COLS_2025 = {
+    'C22': 23, 'C23': 24, 'C24': 25,
+    'C28': 29, 'C29': 30, 'C31': 32,
+    'C33': 34, 'D01': 35, 'D02': 36, 'D03': 37,
+}
+print("Reading 2025 measure stars (prior year, name-matched crosswalk)...")
+measure_stars_2025 = {}
+_my25 = os.path.join(DATA, "2025 Star Ratings Data Table - Measure Stars (Dec 2 2024).csv")
+if os.path.exists(_my25):
+    with open(_my25, encoding='utf-8-sig', errors='replace') as f:
+        lines25 = f.readlines()
+    for row in csv.reader(lines25):
+        if not row or not row[0].strip():
+            continue
+        cid = row[0].strip()
+        # skip any residual header rows (contract ids start with a letter + digit)
+        if not (len(cid) >= 2 and cid[0].isalpha() and cid[1].isdigit()):
+            continue
+        scores = {}
+        for code, idx in CC_COLS_2025.items():
+            if idx < len(row):
+                try:
+                    scores[code] = float(row[idx].strip())
+                except:
+                    scores[code] = None
+        measure_stars_2025[cid] = scores
+    print(f"  {len(measure_stars_2025)} contracts with 2025 measure data")
+else:
+    print("  WARNING: 2025 Measure Stars CSV not found — measure-level YoY will be empty")
+
+# ── Newest-year (2027) measure stars — codes renumbered AGAIN by CMS ──────────
+# Same name-matched approach: map 2027 columns to the canonical 2026 codes so each
+# series is the SAME underlying measure across 2025/2026/2027. Crosswalk
+# (canonical 2026 code -> 2027 code @ col):
+#   C22 Getting Needed Care            = 2027 C21 @ 25
+#   C23 Getting Appts & Care Quickly   = 2027 C22 @ 26
+#   C24 Customer Service               = 2027 C23 @ 27
+#   C28 Complaints about Health Plan   = 2027 C27 @ 31
+#   C29 Members Leaving the Plan       = 2027 C28 @ 32
+#   C31 Timely Decisions on Appeals    = 2027 C30 @ 34
+#   C33 Call Center Language/TTY (C)   = 2027 C32 @ 36
+#   D01 Call Center Language/TTY (D)   = 2027 D01 @ 37
+#   D02 Complaints about Drug Plan     = 2027 D02 @ 38
+#   D03 Members Leaving (Drug Plan)    = 2027 D03 @ 39
+CC_COLS_2027 = {
+    'C22': 25, 'C23': 26, 'C24': 27,
+    'C28': 31, 'C29': 32, 'C31': 34,
+    'C33': 36, 'D01': 37, 'D02': 38, 'D03': 39,
+}
+print("Reading 2027 measure stars (newest year, name-matched crosswalk)...")
+measure_stars_2027 = {}
+_my27 = os.path.join(DATA, "2027 Star Ratings Data Table - Measure Stars (Oct 8 2026).csv")
+if os.path.exists(_my27):
+    with open(_my27, encoding='utf-8-sig', errors='replace') as f:
+        lines27 = f.readlines()
+    for row in csv.reader(lines27):
+        if not row or not row[0].strip():
+            continue
+        cid = row[0].strip()
+        if not (len(cid) >= 2 and cid[0].isalpha() and cid[1].isdigit()):
+            continue
+        scores = {}
+        for code, idx in CC_COLS_2027.items():
+            if idx < len(row):
+                try:
+                    scores[code] = float(row[idx].strip())
+                except:
+                    scores[code] = None
+        measure_stars_2027[cid] = scores
+    print(f"  {len(measure_stars_2027)} contracts with 2027 measure data")
+else:
+    print("  WARNING: 2027 Measure Stars CSV not found — 2027 trend will be empty")
 
 print("Reading enrollment data (large file — please wait)...")
 enrollment_by_contract = defaultdict(int)
@@ -163,6 +256,7 @@ for cid, s26 in summary_2026.items():
     if overall26 is None:
         continue
     overall25 = parse_stars(summary_2025.get(cid, {}).get('overall', ''))
+    overall27 = parse_stars(summary_2027.get(cid, {}).get('overall', ''))
     enr = enrollment_by_contract.get(cid, 0)
     # 500-member floor removes truly zero-enrollment/test contracts only
     if enr < 500:
@@ -170,6 +264,8 @@ for cid, s26 in summary_2026.items():
     states = sorted(states_by_contract.get(cid, []))
     marginal_states = sorted(suppressed_states_by_contract.get(cid, []))
     ms = measure_stars.get(cid, {})
+    ms25 = measure_stars_2025.get(cid, {})
+    ms27 = measure_stars_2027.get(cid, {})
     ci = contract_info.get(cid, {})
     org_name = ci.get('orgName', '') or s26['orgName']
     parent = ci.get('parentOrg', '') or s26['parentOrg']
@@ -177,6 +273,14 @@ for cid, s26 in summary_2026.items():
 
     valid_measures = {k: v for k, v in ms.items() if v is not None}
     cc_avg = (sum(valid_measures.values()) / len(valid_measures)) if valid_measures else None
+
+    # Prior-year (2025) measures, re-keyed to 2026 codes (same underlying measure)
+    valid_measures_2025 = {k: v for k, v in ms25.items() if v is not None}
+    cc_avg_2025 = (sum(valid_measures_2025.values()) / len(valid_measures_2025)) if valid_measures_2025 else None
+
+    # Newest-year (2027) measures, re-keyed to the canonical 2026 codes
+    valid_measures_2027 = {k: v for k, v in ms27.items() if v is not None}
+    cc_avg_2027 = (sum(valid_measures_2027.values()) / len(valid_measures_2027)) if valid_measures_2027 else None
 
     # Determine plan category
     is_pdp = 'PDP' in org_type
@@ -191,11 +295,16 @@ for cid, s26 in summary_2026.items():
         'planCategory': 'PDP' if is_pdp else 'MA',
         'overall2026': overall26,
         'overall2025': overall25,
+        'overall2027': overall27,
         'enrollment': enr,
         'states': states,
         'marginalStates': marginal_states,  # only suppressed (1-10 member) presence, not service area
-        'measures': valid_measures,
+        'measures': valid_measures,              # 2026 call-center measures
+        'measures2025': valid_measures_2025,     # 2025, re-keyed to canonical 2026 codes (same measure)
+        'measures2027': valid_measures_2027,     # 2027, re-keyed to canonical 2026 codes (same measure)
         'ccAvg': round(cc_avg, 2) if cc_avg else None,
+        'ccAvg2025': round(cc_avg_2025, 2) if cc_avg_2025 else None,
+        'ccAvg2027': round(cc_avg_2027, 2) if cc_avg_2027 else None,
     })
 
 plans_out.sort(key=lambda x: -x['enrollment'])
