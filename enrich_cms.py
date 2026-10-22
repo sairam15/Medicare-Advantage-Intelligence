@@ -84,6 +84,31 @@ def contract_range(enr):
         low, high = enr * 25, enr * 50
     return [int(low), int(high)]
 
+# ── Latest-year anchor (re-baselined to 2027, fall back to 2026) ──
+# Scoring/signals anchor on the most recent rating a plan has. ~45 plans
+# CMS didn't rate in 2027 fall back to their 2026 values (and 2025 prior).
+def latest_overall(p):
+    """Return (star, star_year, prior_star, prior_year)."""
+    if p.get('overall2027') is not None:
+        return p['overall2027'], 2027, p.get('overall2026'), 2026
+    return p.get('overall2026'), 2026, p.get('overall2025'), 2025
+
+def latest_cc(p):
+    """Return (cc_avg, cc_year)."""
+    if p.get('ccAvg2027') is not None:
+        return p['ccAvg2027'], 2027
+    return p.get('ccAvg'), 2026
+
+def latest_measures(p):
+    """Return (measures_dict, measures_year)."""
+    m27 = p.get('measures2027') or {}
+    if len(m27) > 0:
+        return m27, 2027
+    return p.get('measures', {}), 2026
+
+def score_basis_year(p):
+    return 2027 if p.get('overall2027') is not None else 2026
+
 # ── Opportunity score ────────────────────────────────────────
 def opportunity_score(plan):
     enr = plan['enrollment']
@@ -99,11 +124,12 @@ def opportunity_score(plan):
     else:                  size = 3
 
     # CC quality gap (0-30): how far below perfect the call-center measures are
-    cc = plan.get('ccAvg')
+    cc, _ = latest_cc(plan)
     cc_gap = max(0, (5.0 - cc) / 2.5 * 30) if cc else 15
 
     # Star urgency (0-20)
-    star = plan.get('overall2026', 3.0)
+    star, _, prev, _ = latest_overall(plan)
+    if star is None: star = 3.0
     if   star <= 2.0: urg = 20
     elif star <= 2.5: urg = 18
     elif star <= 3.0: urg = 14
@@ -112,7 +138,6 @@ def opportunity_score(plan):
     else:             urg =  2
 
     # YoY drop bonus (0-12)
-    prev = plan.get('overall2025')
     drop = min(12, int((prev - star) * 8)) if prev and star < prev else 0
 
     return min(99, int(size + cc_gap + urg + drop))
@@ -120,31 +145,31 @@ def opportunity_score(plan):
 # ── Signal generation ────────────────────────────────────────
 def generate_signals(plan):
     signals = []
-    ms = plan.get('measures', {})
-    star = plan['overall2026']
-    prev = plan.get('overall2025')
+    ms, ms_yr = latest_measures(plan)
+    star, star_yr, prev, prev_yr = latest_overall(plan)
+    ms_src = f'CMS {ms_yr} Measure Stars'
 
-    if prev and star < prev:
+    if prev and star is not None and star < prev:
         lost_qbp = star < 4.0 and prev >= 4.0
         signals.append({
             'type': 'star_drop',
-            'headline': f"Stars dropped {prev}★ → {star}★ (2025→2026)",
+            'headline': f"Stars dropped {prev}★ → {star}★ ({prev_yr}→{star_yr})",
             'detail': (f"Plan fell below the 4.0★ Quality Bonus Payment threshold, losing an estimated "
                        f"${plan['enrollment']*45:,.0f}/yr in CMS bonus payments. "
                        "Call center quality is a primary lever to recover lost stars.")
                       if lost_qbp else
-                      (f"CMS 2026 Star Ratings show a {prev-star:.1f}-star decline. "
+                      (f"CMS {star_yr} Star Ratings show a {prev-star:.1f}-star decline. "
                        "Member experience and call center responsiveness are key recovery levers."),
-            'source': 'CMS 2026 Star Ratings (Oct 8, 2025)',
+            'source': f'CMS {star_yr} Star Ratings',
         })
 
-    if star <= 2.5:
+    if star is not None and star <= 2.5:
         signals.append({
             'type': 'low_performer',
             'headline': f"Low-Performing Plan — {star}★ (42 CFR §422.510 risk)",
             'detail': ("Plans below 3.0★ for three consecutive years face CMS enrollment restrictions "
                        "and sanctions under 42 CFR §422.510. This plan is in or near that zone."),
-            'source': 'CMS 2026 Star Ratings / 42 CFR §422.510',
+            'source': f'CMS {star_yr} Star Ratings / 42 CFR §422.510',
         })
 
     # Language access gaps (C33 or D01 < 3.5)
@@ -158,11 +183,11 @@ def generate_signals(plan):
             'headline': 'Language Access Audit Gap — CMS Direct Audit Measure',
             'detail': (f"{' / '.join(bad)}. These are CMS audit measures scored by live test calls. "
                        "Everise's multilingual workforce is a direct solution to this gap."),
-            'source': 'CMS 2026 Measure Stars',
+            'source': ms_src,
         })
 
     # CC quality gap (avg < 3.5)
-    cc = plan.get('ccAvg')
+    cc, cc_yr = latest_cc(plan)
     if cc and cc < 3.5:
         signals.append({
             'type': 'cc_weakness',
@@ -170,7 +195,7 @@ def generate_signals(plan):
             'detail': (f"CC measure average of {cc}★ is below the 3.5★ industry benchmark. "
                        "Measures C22 (Access), C23 (Timeliness), C24 (Customer Service) "
                        "directly reflect call center performance."),
-            'source': 'CMS 2026 Measure Stars',
+            'source': f'CMS {cc_yr} Measure Stars',
         })
 
     # Complaint surge (C28 < 3.5)
@@ -181,7 +206,7 @@ def generate_signals(plan):
             'headline': f"High Complaint Rate — C28: {c28}★",
             'detail': (f"CMS complaint measure C28 = {c28}★. High complaint rates are directly "
                        "correlated with poor first-call resolution and inadequate call center staffing."),
-            'source': 'CMS 2026 Measure Stars',
+            'source': ms_src,
         })
 
     # Disenrollment spike (C29 < 3.5 or D03 < 3.5)
@@ -192,7 +217,7 @@ def generate_signals(plan):
             'headline': 'Elevated Disenrollment — Members Leaving the Plan',
             'detail': ("CMS exit surveys cite 'difficulty reaching the plan' as the #1 reason members "
                        "voluntarily disenroll. Improving call center accessibility directly reduces churn."),
-            'source': 'CMS 2026 Measure Stars',
+            'source': ms_src,
         })
 
     # Appeals risk (C31 < 3.5)
@@ -204,7 +229,7 @@ def generate_signals(plan):
             'detail': (f"C31 (Plan Makes Timely Decisions on Appeals) = {c31}★. "
                        "The call center is the first point of contact for all member appeals and grievances. "
                        "Delays create CMS compliance risk."),
-            'source': 'CMS 2026 Measure Stars',
+            'source': ms_src,
         })
 
     return signals[:5]
@@ -212,14 +237,13 @@ def generate_signals(plan):
 # ── Scenarios ────────────────────────────────────────────────
 def generate_scenarios(plan):
     scenarios = []
-    star = plan['overall2026']
-    prev = plan.get('overall2025')
-    ms = plan.get('measures', {})
+    star, _, prev, _ = latest_overall(plan)
+    ms, _ = latest_measures(plan)
 
-    if prev and star < prev and star < 4.0:
+    if prev and star is not None and star < prev and star < 4.0:
         scenarios.append({'type': 'recovery', 'label': 'Recovery Play',
             'desc': "Plan lost stars/QBP — urgency to recover bonus payments"})
-    if star <= 2.5:
+    if star is not None and star <= 2.5:
         scenarios.append({'type': 'turnaround', 'label': 'Turnaround Play',
             'desc': "Persistent low performer — below 3.0★, CMS sanction risk"})
     c33 = ms.get('C33'); d01 = ms.get('D01')
@@ -230,7 +254,7 @@ def generate_scenarios(plan):
     if c31 and c31 < 3.5:
         scenarios.append({'type': 'compliance', 'label': 'Compliance Play',
             'desc': "Appeals/grievances deficiency — compliance-driven urgency"})
-    if star >= 4.0 and plan['enrollment'] >= 200_000:
+    if star is not None and star >= 4.0 and plan['enrollment'] >= 200_000:
         scenarios.append({'type': 'expansion', 'label': 'Expansion Play',
             'desc': "High-performing plan scaling members — needs quality staffing to maintain stars"})
     return scenarios
@@ -238,16 +262,15 @@ def generate_scenarios(plan):
 # ── Talking points ───────────────────────────────────────────
 def generate_talking_points(plan):
     pts = []
-    star = plan['overall2026']
-    prev = plan.get('overall2025')
-    cc = plan.get('ccAvg')
-    ms = plan.get('measures', {})
+    star, star_yr, prev, _ = latest_overall(plan)
+    cc, _ = latest_cc(plan)
+    ms, _ = latest_measures(plan)
     enr = plan['enrollment']
     cr = plan.get('contractRange', [0, 0])
 
-    if prev and star < prev:
+    if prev and star is not None and star < prev:
         qbp_loss = enr * 45 if star < 4.0 <= prev else 0
-        pts.append(f"Your 2026 Star Rating dropped {prev}★ → {star}★. " +
+        pts.append(f"Your {star_yr} Star Rating dropped {prev}★ → {star}★. " +
                    (f"That's an estimated ${qbp_loss:,.0f}/yr in lost Quality Bonus Payments (QBP). "
                     "Everise's call center quality program has helped similar plans recover 0.5–1.0★ within 24 months."
                     if qbp_loss else
@@ -291,6 +314,7 @@ for p in plans:
     enriched.append({
         **p,
         'opportunityScore': score,
+        'scoreBasisYear':   score_basis_year(p),
         'signals':          sigs,
         'scenarios':        scens,
         'talkingPoints':    tpts,
